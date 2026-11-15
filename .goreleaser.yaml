@@ -1,0 +1,58 @@
+# Release configuration for the agent-otel-kit CLI.
+#   goreleaser release --snapshot --clean   local build of every target into dist/
+# Tagging vX.Y.Z on main runs .github/workflows/release.yml, which publishes
+# the archives and checksums.txt to the GitHub release. The Homebrew formula
+# lives in s3onghyun/homebrew-tap and is updated by hand from checksums.txt.
+version: 2
+
+project_name: agent-otel-kit
+
+before:
+  hooks:
+    - go mod tidy -diff
+
+builds:
+  - id: agent-otel-kit
+    main: ./cmd/agent-otel-kit
+    binary: agent-otel-kit
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  github:
+    owner: s3onghyun
+    name: agent-otel-kit
+  draft: false
+  prerelease: auto
+
+# The Homebrew formula is written by hand in s3onghyun/homebrew-tap, so no
+# brews/homebrew_casks publisher is configured here.
