@@ -142,8 +142,13 @@ cmd/agent-otel-kit/        CLI: setup, setup --undo, doctor, version
 .goreleaser.yaml           release builds (a vX.Y.Z tag runs .github/workflows/release.yml)
 tools/gendashboards/       generates the Grafana and Perses dashboards
 scripts/                   demo.sh (real claude -p sessions), screenshots.sh,
-                           test-collector.sh (collector rules on recorded payloads)
+                           test-collector.sh (collector rules on recorded payloads),
+                           check-collector-warnings.sh (collector start-up warnings)
 ```
+
+## Development
+
+Checks to run before a pull request, and a checklist for collector config changes: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 License: Apache-2.0.
 
@@ -270,5 +275,9 @@ Perses가 <http://localhost:8080>에서 `agent-otel-kit` 프로젝트, Prometheu
 - collector를 재시작하면 delta→cumulative 상태가 초기화되고, 대시보드는 이를 카운터 리셋으로 처리합니다.
 - 메모리 상한: collector, Prometheus, Loki, Tempo 각 512 MiB, Grafana 384 MiB, Perses 256 MiB.
 - `make clean`은 스택을 멈추고 볼륨을 지웁니다.
+
+### 개발
+
+pull request 전에 돌릴 검사와 collector 설정 변경 체크리스트는 [CONTRIBUTING.md](CONTRIBUTING.md)에 있습니다.
 
 라이선스: Apache-2.0.
