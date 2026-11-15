@@ -1,6 +1,6 @@
 COMPOSE ?= docker compose
 BIN     ?= bin/agent-otel-kit
-OTELCOL_IMAGE := otel/opentelemetry-collector-contrib:0.164.0
+OTELCOL_IMAGE := otel/opentelemetry-collector-contrib:0.164.0@sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b
 
 .PHONY: help up up-perses up-debug down clean demo doctor screenshots build test test-collector lint dashboards validate
 

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -19,7 +20,42 @@ import (
 	"github.com/s3onghyun/agent-otel-kit/internal/doctor"
 )
 
-var version = "dev"
+// Set at release build time with -ldflags "-X main.version=... -X main.commit=... -X main.date=...".
+var (
+	version = "dev"
+	commit  = ""
+	date    = ""
+)
+
+// versionString reports the release version, commit and build date. Builds
+// without ldflags (go build, go install) fall back to the Go build info.
+func versionString(info *debug.BuildInfo, ok bool) string {
+	v, c, d := version, commit, date
+	if ok && info != nil {
+		if v == "dev" && info.Main.Version != "" && info.Main.Version != "(devel)" {
+			v = strings.TrimPrefix(info.Main.Version, "v")
+		}
+		for _, s := range info.Settings {
+			switch {
+			case s.Key == "vcs.revision" && c == "":
+				c = s.Value
+			case s.Key == "vcs.time" && d == "":
+				d = s.Value
+			}
+		}
+	}
+	if len(c) > 12 {
+		c = c[:12]
+	}
+	out := "agent-otel-kit " + v
+	switch {
+	case c != "" && d != "":
+		out += " (commit " + c + ", built " + d + ")"
+	case c != "":
+		out += " (commit " + c + ")"
+	}
+	return out
+}
 
 const usage = `agent-otel-kit: send Claude Code, Codex and Gemini CLI telemetry to a local OpenTelemetry stack.
 
@@ -57,7 +93,7 @@ func run(args []string, stdout, stderr io.Writer, env agents.Env) int {
 	case "doctor":
 		return runDoctor(args[1:], stdout, stderr, env)
 	case "version", "--version", "-v":
-		fmt.Fprintln(stdout, version)
+		fmt.Fprintln(stdout, versionString(debug.ReadBuildInfo()))
 		return 0
 	case "help", "-h", "--help":
 		fmt.Fprint(stdout, usage)

@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"testing"
 
@@ -228,5 +229,32 @@ func TestSetupTwiceIsNoop(t *testing.T) {
 	code, out, _ := runCLI(t, env, "setup", "gemini")
 	if code != 0 || !strings.Contains(out, "already points") {
 		t.Fatalf("second setup: %d %s", code, out)
+	}
+}
+
+func TestVersionString(t *testing.T) {
+	saved := [3]string{version, commit, date}
+	t.Cleanup(func() { version, commit, date = saved[0], saved[1], saved[2] })
+
+	version, commit, date = "0.1.0", "0123456789abcdef0123", "2026-11-15T00:00:00Z"
+	if got, want := versionString(nil, false), "agent-otel-kit 0.1.0 (commit 0123456789ab, built 2026-11-15T00:00:00Z)"; got != want {
+		t.Errorf("release build: got %q, want %q", got, want)
+	}
+
+	version, commit, date = "dev", "", ""
+	info := &debug.BuildInfo{
+		Main:     debug.Module{Version: "v0.2.0"},
+		Settings: []debug.BuildSetting{{Key: "vcs.revision", Value: "fedcba9876543210"}},
+	}
+	if got, want := versionString(info, true), "agent-otel-kit 0.2.0 (commit fedcba987654)"; got != want {
+		t.Errorf("go install build: got %q, want %q", got, want)
+	}
+	if got, want := versionString(&debug.BuildInfo{Main: debug.Module{Version: "(devel)"}}, true), "agent-otel-kit dev"; got != want {
+		t.Errorf("local build: got %q, want %q", got, want)
+	}
+
+	code, out, _ := runCLI(t, testEnv(t), "version")
+	if code != 0 || !strings.HasPrefix(out, "agent-otel-kit ") {
+		t.Errorf("version: code %d, output %q", code, out)
 	}
 }

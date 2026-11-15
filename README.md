@@ -2,28 +2,37 @@
 
 See the cost, tokens, tool calls and traces of Claude Code, Codex and Gemini CLI on your own machine, with one `docker compose up`.
 
-[한국어](#한국어)
+![Demo: Claude Code, Codex and Gemini CLI sessions arriving in the Grafana cost and tokens dashboard, then a Claude Code trace waterfall from Tempo](docs/demo.gif)
 
-![Grafana: agent cost and tokens](docs/screenshots/grafana-cost-tokens.png)
+[한국어](#한국어)
 
 agent-otel-kit is a local OpenTelemetry stack for AI coding agents: an OpenTelemetry Collector that receives the agents' OTLP telemetry, Prometheus for metrics, Loki for events, Tempo for traces, and the same three dashboards in Grafana and in Perses. A small Go CLI points each agent at the collector and checks that data arrives.
 
 ## Quickstart (30 seconds)
 
-Requirements: Docker with the compose plugin, Go 1.24+ for the CLI.
+Requirements: Docker with the compose plugin, and the CLI (see [Install the CLI](#install-the-cli)).
 
 ```sh
 git clone https://github.com/s3onghyun/agent-otel-kit && cd agent-otel-kit
 docker compose up -d                       # or: make up
-make build                                 # builds bin/agent-otel-kit
-bin/agent-otel-kit setup claude            # or codex, gemini, all
+brew install s3onghyun/tap/agent-otel-kit  # or a release archive, go install, or make build
+agent-otel-kit setup claude                # or codex, gemini, all
 # start a new agent session and use it for a minute, then:
-bin/agent-otel-kit doctor
+agent-otel-kit doctor
 ```
 
 Open Grafana at <http://localhost:3000> (anonymous read access; the dashboards are in the "Agent OTel Kit" folder). For Perses, run `docker compose --profile perses up -d` and open <http://localhost:8080>.
 
 Every port is bound to 127.0.0.1. The collector listens on `localhost:4318` (OTLP/HTTP) and `localhost:4317` (OTLP/gRPC).
+
+### Install the CLI
+
+- Homebrew (macOS, Linux): `brew install s3onghyun/tap/agent-otel-kit`
+- Prebuilt archives for Linux and macOS (amd64, arm64) with `checksums.txt`: [Releases](https://github.com/s3onghyun/agent-otel-kit/releases)
+- Go 1.24+: `go install github.com/s3onghyun/agent-otel-kit/cmd/agent-otel-kit@latest`
+- From the clone: `make build` writes `bin/agent-otel-kit`
+
+`agent-otel-kit version` prints the version, commit and build date.
 
 ## What is collected and what is not
 
@@ -72,6 +81,8 @@ All three exist in Grafana (`grafana/dashboards/`) and Perses (`perses/provision
 
 **Agent cost and tokens**: cost, tokens, sessions and active time for the range; cost per interval by model; tokens per interval by type; cost by model; tokens by agent, model and type; the most expensive sessions.
 
+![Grafana: agent cost and tokens](docs/screenshots/grafana-cost-tokens.png)
+
 **Agent tool calls**: call count, failures, success rate and p95 duration; calls per interval and p95 duration by tool; a per-tool table; permission decisions (who allowed each call); failed calls from Loki. The tool metric `agent_otel_kit.tool.duration` is built in the collector by the `signal_to_metrics` connector from each agent's tool result events, so it is the same for all agents.
 
 ![Grafana: agent tool calls](docs/screenshots/grafana-tool-calls.png)
@@ -94,7 +105,7 @@ Metric names seen in Prometheus from Claude Code 2.1.325: `claude_code_cost_usag
 
 Event names seen in Loki: Claude Code `tool_result`, `tool_decision`, `api_request`, `user_prompt`, ...; Codex `codex.tool_result`, `codex.tool_decision`, `codex.sse_event`, `codex.api_request`, `codex.user_prompt`, ...; Gemini CLI `gemini_cli.tool_call`, `gemini_cli.api_request`, `gemini_cli.api_response`, `gemini_cli.file_operation`, `gemini_cli.user_prompt`, .... Claude Code also defines `claude_code.lines_of_code.count`, `claude_code.commit.count`, `claude_code.pull_request.count` and `claude_code.code_edit_tool.decision`, which only appear after edits, commits or pull requests.
 
-The screenshots were taken from this stack with real sessions run on the author's machine: Claude Code (`make demo`), `codex exec` and `gemini -p`, then `make screenshots`.
+The screenshots were taken from this stack with real sessions run on the author's machine: Claude Code (`make demo`), `codex exec` and `gemini -p`, then `make screenshots`. The demo GIF at the top is a headless Chromium recording of the same dashboards during one such run, only trimmed and sped up; `docs/demo.mp4` is its source.
 
 ## Perses
 
@@ -127,7 +138,8 @@ collector/config.yaml      receivers, processors, connector, exporters
 prometheus/ loki/ tempo/   backend configs
 grafana/                   datasources and dashboards
 perses/                    Perses config and provisioning
-cmd/agent-otel-kit/        CLI: setup, setup --undo, doctor
+cmd/agent-otel-kit/        CLI: setup, setup --undo, doctor, version
+.goreleaser.yaml           release builds (a vX.Y.Z tag runs .github/workflows/release.yml)
 tools/gendashboards/       generates the Grafana and Perses dashboards
 scripts/                   demo.sh (real claude -p sessions), screenshots.sh,
                            test-collector.sh (collector rules on recorded payloads)
@@ -141,24 +153,35 @@ License: Apache-2.0.
 
 명령 한 줄(`docker compose up`)로 Claude Code·Codex·Gemini CLI의 비용, 토큰, 도구 호출, 트레이스를 내 컴퓨터에서 봅니다.
 
+![데모: Claude Code, Codex, Gemini CLI 세션이 Grafana 비용·토큰 대시보드에 들어오고, 이어서 Tempo의 Claude Code 트레이스 워터폴](docs/demo.gif)
+
 agent-otel-kit은 AI 코딩 에이전트용 로컬 OpenTelemetry 스택입니다. 에이전트의 OTLP 텔레메트리를 받는 OpenTelemetry Collector, 메트릭용 Prometheus, 이벤트용 Loki, 트레이스용 Tempo, 그리고 Grafana와 Perses에 같은 대시보드 3개가 들어 있습니다. 작은 Go CLI가 각 에이전트 설정을 collector로 향하게 하고 데이터가 들어오는지 확인합니다.
 
 ### 빠른 시작 (30초)
 
-필요한 것: compose 플러그인이 있는 Docker, CLI 빌드용 Go 1.24 이상.
+필요한 것: compose 플러그인이 있는 Docker, 그리고 CLI([CLI 설치](#cli-설치) 참고).
 
 ```sh
 git clone https://github.com/s3onghyun/agent-otel-kit && cd agent-otel-kit
 docker compose up -d                       # 또는 make up
-make build                                 # bin/agent-otel-kit 생성
-bin/agent-otel-kit setup claude            # codex, gemini, all도 가능
+brew install s3onghyun/tap/agent-otel-kit  # 또는 릴리스 압축 파일, go install, make build
+agent-otel-kit setup claude                # codex, gemini, all도 가능
 # 에이전트 세션을 새로 시작해 1분쯤 쓴 뒤:
-bin/agent-otel-kit doctor
+agent-otel-kit doctor
 ```
 
 Grafana는 <http://localhost:3000>입니다(익명 읽기 허용, 대시보드는 "Agent OTel Kit" 폴더). Perses는 `docker compose --profile perses up -d` 후 <http://localhost:8080>에서 엽니다.
 
 모든 포트는 127.0.0.1에만 열립니다. collector는 `localhost:4318`(OTLP/HTTP)과 `localhost:4317`(OTLP/gRPC)에서 받습니다.
+
+### CLI 설치
+
+- Homebrew(macOS, Linux): `brew install s3onghyun/tap/agent-otel-kit`
+- Linux·macOS(amd64, arm64)용 빌드 파일과 `checksums.txt`: [Releases](https://github.com/s3onghyun/agent-otel-kit/releases)
+- Go 1.24 이상: `go install github.com/s3onghyun/agent-otel-kit/cmd/agent-otel-kit@latest`
+- 클론한 저장소에서: `make build`가 `bin/agent-otel-kit`을 만듭니다
+
+`agent-otel-kit version`은 버전, 커밋, 빌드 날짜를 출력합니다.
 
 ### 수집하는 것과 수집하지 않는 것
 
@@ -225,7 +248,7 @@ Prometheus에 실제로 들어온 메트릭 이름. Claude Code 2.1.325: `claude
 
 Loki에서 본 이벤트 이름: Claude Code `tool_result`, `tool_decision`, `api_request`, `user_prompt` 등; Codex `codex.tool_result`, `codex.tool_decision`, `codex.sse_event`, `codex.api_request`, `codex.user_prompt` 등; Gemini CLI `gemini_cli.tool_call`, `gemini_cli.api_request`, `gemini_cli.api_response`, `gemini_cli.file_operation`, `gemini_cli.user_prompt` 등.
 
-스크린샷은 작성자 컴퓨터에서 실제 세션을 돌린 이 스택에서 찍었습니다: Claude Code(`make demo`), `codex exec`, `gemini -p`, 그다음 `make screenshots`.
+스크린샷은 작성자 컴퓨터에서 실제 세션을 돌린 이 스택에서 찍었습니다: Claude Code(`make demo`), `codex exec`, `gemini -p`, 그다음 `make screenshots`. 맨 위 데모 GIF는 그런 실행 한 번 동안 같은 대시보드를 headless Chromium으로 녹화한 것으로, 자르기와 배속만 했습니다. 원본은 `docs/demo.mp4`입니다.
 
 ### Perses
 
