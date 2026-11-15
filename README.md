@@ -31,11 +31,12 @@ Collected: the metrics, events and traces each agent exports when telemetry is o
 
 Not collected by default:
 
-- Prompt text, model responses, tool arguments, tool output, file paths, shell commands and error messages. The agents already redact most of these unless you opt in (`OTEL_LOG_USER_PROMPTS`, `OTEL_LOG_TOOL_DETAILS`, Codex `log_user_prompt`, Gemini `logPrompts`). The collector deletes these attributes again in `transform/redact`, so turning one of those agent switches on by mistake does not store content. Set `AGENT_OTEL_KIT_CAPTURE_CONTENT=true` in the collector's environment to keep them.
-- `user.email`. Claude Code and Gemini CLI attach the account email to every data point; the collector drops it unless `AGENT_OTEL_KIT_KEEP_EMAIL=true`.
+- Prompt text, model responses, tool arguments, tool output, file paths, shell commands and error messages (including `error.message` and span exception messages, which can hold file paths). The agents already redact most of these unless you opt in (`OTEL_LOG_USER_PROMPTS`, `OTEL_LOG_TOOL_DETAILS`, Codex `log_user_prompt`, Gemini `logPrompts`). The collector deletes these attributes again in `transform/redact`, so turning one of those agent switches on by mistake does not store content. Set `AGENT_OTEL_KIT_CAPTURE_CONTENT=true` in the collector's environment to keep them.
+- The process command line (`process.command_args`). Gemini CLI sends it as a resource attribute, and for `gemini -p "..."` it contains the prompt.
+- `user.email`. Claude Code attaches the account email to every data point, and Gemini CLI documents the same for Google sign-in (with an API key it sent none); the collector drops it unless `AGENT_OTEL_KIT_KEEP_EMAIL=true`.
 - `setup gemini` sets `logPrompts: false`, because Gemini CLI logs prompts by default.
 
-Other identifiers stay: `session.id`, `user.account_uuid`, `organization.id`, `terminal.type`, host OS. Everything stays on your machine; nothing in the stack sends data elsewhere (Grafana and Loki usage reporting is off).
+Other identifiers stay: `session.id` (Codex: `conversation.id`), `user.account_uuid`, `organization.id`, Codex `user.account_id`, `installation.id`, `terminal.type`, host name and OS. Everything stays on your machine; nothing in the stack sends data elsewhere (Grafana and Loki usage reporting is off).
 
 ## Per-agent setup
 
@@ -54,8 +55,10 @@ Supported versions:
 | Agent | Status |
 |---|---|
 | Claude Code 2.1.325 | Verified on a live stack: metrics, events and traces (with the traces beta flag). |
-| Codex | Config edit unit-tested against fixtures, written from the Codex `[otel]` docs. Not run against a live Codex yet. Codex exports no token or cost metric, so its token panels stay empty; tool calls come from `codex.tool_result` events. |
-| Gemini CLI | Config edit unit-tested against fixtures, written from the Gemini CLI telemetry docs. Not run against a live Gemini CLI yet. Gemini CLI exports no cost metric. |
+| Codex 0.169.0 (`codex exec`) | Verified on a live stack with `setup codex`: metrics, events and traces. Tokens come from the `codex.turn.token_usage` histogram, sessions from `codex.thread.started`, tool calls from `codex.tool_result` events. No cost metric. Codex metrics carry no session ID, so Codex sessions are missing from the per-session table. |
+| Gemini CLI 0.68.0 (`gemini -p`, API key) | Verified on a live stack with `setup gemini`: metrics, events and traces. Tool calls come from `gemini_cli.tool_call` events. No cost metric. |
+
+Only the non-interactive modes and the auth methods listed were run. Gemini CLI with a personal Google login was rejected by Google for this client ("no longer supported for Gemini Code Assist for individuals"), so that path was tested with an AI Studio API key.
 
 ## The delta temporality trap
 
@@ -77,11 +80,21 @@ All three exist in Grafana (`grafana/dashboards/`) and Perses (`perses/provision
 
 ![Grafana: agent sessions and traces](docs/screenshots/grafana-sessions-traces.png)
 
-Every label is normalized to `agent_name` (`claude-code`, `codex`, `gemini-cli`), derived from the `service.name` each agent sets. Set `OTEL_RESOURCE_ATTRIBUTES=agent.name=<name>` on an agent to override it. Claude Code's own `agent.name` attribute (the subagent name) is kept as `subagent.name`.
+Every label is normalized to `agent_name` (`claude-code`, `codex`, `gemini-cli`), derived from the `service.name` each agent sets. Set `OTEL_RESOURCE_ATTRIBUTES=agent.name=<name>` on an agent to override it. Claude Code's own `agent.name` attribute (the subagent name) and Codex's `agent_name` attribute (the agent path, `/root` for the main agent) are kept as `subagent.name`. Codex's `conversation.id` is copied to `session.id`, and its `token_type` to `type`.
 
-Metric names seen in Prometheus from Claude Code 2.1.325: `claude_code_cost_usage_USD_total`, `claude_code_token_usage_tokens_total`, `claude_code_session_count_total`, `claude_code_active_time_seconds_total`; from the collector: `agent_otel_kit_tool_duration_milliseconds_{bucket,count,sum}`. Claude Code also defines `claude_code.lines_of_code.count`, `claude_code.commit.count`, `claude_code.pull_request.count` and `claude_code.code_edit_tool.decision`, which only appear after edits, commits or pull requests.
+Token totals add only token types that do not overlap: Codex counts cached input inside `input` and reasoning inside `output`, and Gemini CLI counts `cache` inside `input`, so those parts (and Codex's `total`) are not added again. Claude Code's `cacheRead` and `cacheCreation` are separate from `input` and are added.
 
-The screenshots were taken from this stack with real Claude Code sessions run on the author's machine (`make demo`, `make screenshots`).
+Agent differences visible on the dashboards:
+
+- Codex marks a shell command that ran but exited non-zero as a successful tool call. In code mode it also reports the outer `exec` tool next to each inner `exec_command`.
+- Codex sends many short internal traces (`auth`, `fs.read_file`, ...); the traces panel lists only `turn/start` for Codex. Gemini CLI has no per-prompt trace: it sends one `llm_call` trace per model call and one `schedule_tool_calls` trace per tool batch.
+- Over its default WebSocket transport, Codex logs no per-request model duration, so the model request panel shows Codex only for HTTP `/responses` requests.
+
+Metric names seen in Prometheus from Claude Code 2.1.325: `claude_code_cost_usage_USD_total`, `claude_code_token_usage_tokens_total`, `claude_code_session_count_total`, `claude_code_active_time_seconds_total`. From Codex 0.169.0 (74 metric families in a short `codex exec` run), among them: `codex_turn_token_usage_{bucket,count,sum}` (label `token_type`), `codex_thread_started_total`, `codex_tool_call_total`, `codex_turn_e2e_duration_ms_milliseconds_*`. From Gemini CLI 0.68.0: `gemini_cli_token_usage_total` (label `type`: `input`, `output`, `thought`, `cache`, `tool`), `gemini_cli_session_count_total`, `gemini_cli_tool_call_count_total`, `gemini_cli_api_request_count_total`. From the collector: `agent_otel_kit_tool_duration_milliseconds_{bucket,count,sum}`.
+
+Event names seen in Loki: Claude Code `tool_result`, `tool_decision`, `api_request`, `user_prompt`, ...; Codex `codex.tool_result`, `codex.tool_decision`, `codex.sse_event`, `codex.api_request`, `codex.user_prompt`, ...; Gemini CLI `gemini_cli.tool_call`, `gemini_cli.api_request`, `gemini_cli.api_response`, `gemini_cli.file_operation`, `gemini_cli.user_prompt`, .... Claude Code also defines `claude_code.lines_of_code.count`, `claude_code.commit.count`, `claude_code.pull_request.count` and `claude_code.code_edit_tool.decision`, which only appear after edits, commits or pull requests.
+
+The screenshots were taken from this stack with real sessions run on the author's machine: Claude Code (`make demo`), `codex exec` and `gemini -p`, then `make screenshots`.
 
 ## Perses
 
@@ -101,6 +114,7 @@ Perses starts on <http://localhost:8080> with the project `agent-otel-kit`, glob
 - Metrics arrive late: Claude Code exports metrics every 60 s unless `OTEL_METRIC_EXPORT_INTERVAL` is set (setup sets 10 s); events and spans export every 5 s.
 - No traces from Claude Code: the traces beta needs `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1` and `OTEL_TRACES_EXPORTER=otlp`.
 - To see raw data, start with `make up-debug` and run `docker compose logs -f otel-collector`.
+- `make test-collector` runs the collector config against payloads recorded from Codex and Gemini CLI (in `collector/testdata/`) and checks the normalization, the tool histogram and the redaction.
 - Restarting the collector resets its delta-to-cumulative state; the dashboards treat that as a counter reset.
 - Memory limits: collector, Prometheus, Loki and Tempo 512 MiB each, Grafana 384 MiB, Perses 256 MiB.
 - `make clean` stops the stack and deletes its volumes.
@@ -115,7 +129,8 @@ grafana/                   datasources and dashboards
 perses/                    Perses config and provisioning
 cmd/agent-otel-kit/        CLI: setup, setup --undo, doctor
 tools/gendashboards/       generates the Grafana and Perses dashboards
-scripts/                   demo.sh (real claude -p sessions), screenshots.sh
+scripts/                   demo.sh (real claude -p sessions), screenshots.sh,
+                           test-collector.sh (collector rules on recorded payloads)
 ```
 
 License: Apache-2.0.
@@ -151,11 +166,12 @@ Grafana는 <http://localhost:3000>입니다(익명 읽기 허용, 대시보드�
 
 기본으로 수집하지 않는 것:
 
-- 프롬프트 내용, 모델 응답, 도구 인자, 도구 출력, 파일 경로, 셸 명령, 오류 메시지. 에이전트도 옵트인(`OTEL_LOG_USER_PROMPTS`, `OTEL_LOG_TOOL_DETAILS`, Codex `log_user_prompt`, Gemini `logPrompts`)하지 않으면 대부분 가립니다. collector의 `transform/redact`가 이 속성들을 한 번 더 지우므로, 에이전트 쪽 스위치를 실수로 켜도 내용은 저장되지 않습니다. 남기려면 collector 환경 변수 `AGENT_OTEL_KIT_CAPTURE_CONTENT=true`를 설정합니다.
-- `user.email`. Claude Code와 Gemini CLI는 모든 데이터에 계정 이메일을 붙이는데, collector가 지웁니다. 남기려면 `AGENT_OTEL_KIT_KEEP_EMAIL=true`입니다.
+- 프롬프트 내용, 모델 응답, 도구 인자, 도구 출력, 파일 경로, 셸 명령, 오류 메시지(파일 경로가 들어갈 수 있는 `error.message`와 span 예외 메시지 포함). 에이전트도 옵트인(`OTEL_LOG_USER_PROMPTS`, `OTEL_LOG_TOOL_DETAILS`, Codex `log_user_prompt`, Gemini `logPrompts`)하지 않으면 대부분 가립니다. collector의 `transform/redact`가 이 속성들을 한 번 더 지우므로, 에이전트 쪽 스위치를 실수로 켜도 내용은 저장되지 않습니다. 남기려면 collector 환경 변수 `AGENT_OTEL_KIT_CAPTURE_CONTENT=true`를 설정합니다.
+- 프로세스 명령줄(`process.command_args`). Gemini CLI가 resource 속성으로 보내는데, `gemini -p "..."`로 실행하면 프롬프트가 들어 있습니다.
+- `user.email`. Claude Code는 모든 데이터에 계정 이메일을 붙이고, Gemini CLI도 Google 로그인 시 그렇다고 문서에 적혀 있습니다(API 키로는 보내지 않았습니다). collector가 지웁니다. 남기려면 `AGENT_OTEL_KIT_KEEP_EMAIL=true`입니다.
 - Gemini CLI는 기본값으로 프롬프트를 기록하므로 `setup gemini`가 `logPrompts: false`를 씁니다.
 
-남는 식별자: `session.id`, `user.account_uuid`, `organization.id`, `terminal.type`, 호스트 OS. 모든 데이터는 내 컴퓨터에만 있고, 스택이 외부로 보내는 것은 없습니다(Grafana와 Loki 사용 통계 전송은 꺼 두었습니다).
+남는 식별자: `session.id`(Codex는 `conversation.id`), `user.account_uuid`, `organization.id`, Codex `user.account_id`, `installation.id`, `terminal.type`, 호스트 이름과 OS. 모든 데이터는 내 컴퓨터에만 있고, 스택이 외부로 보내는 것은 없습니다(Grafana와 Loki 사용 통계 전송은 꺼 두었습니다).
 
 ### 에이전트별 설정
 
@@ -174,8 +190,10 @@ Grafana는 <http://localhost:3000>입니다(익명 읽기 허용, 대시보드�
 | 에이전트 | 상태 |
 |---|---|
 | Claude Code 2.1.325 | 실제 스택에서 확인: 메트릭, 이벤트, 트레이스(트레이스 베타 플래그 사용). |
-| Codex | Codex `[otel]` 문서대로 작성하고 fixture로 설정 편집을 단위 테스트했습니다. 실제 Codex로는 아직 돌려 보지 않았습니다. Codex는 토큰·비용 메트릭을 내보내지 않아 토큰 패널이 비고, 도구 호출은 `codex.tool_result` 이벤트에서 만듭니다. |
-| Gemini CLI | Gemini CLI 텔레메트리 문서대로 작성하고 fixture로 설정 편집을 단위 테스트했습니다. 실제 Gemini CLI로는 아직 돌려 보지 않았습니다. Gemini CLI는 비용 메트릭을 내보내지 않습니다. |
+| Codex 0.169.0 (`codex exec`) | `setup codex`로 실제 스택에서 확인: 메트릭, 이벤트, 트레이스. 토큰은 `codex.turn.token_usage` 히스토그램, 세션은 `codex.thread.started`, 도구 호출은 `codex.tool_result` 이벤트에서 옵니다. 비용 메트릭은 없습니다. Codex 메트릭에는 세션 ID가 없어 세션별 표에는 Codex 세션이 나오지 않습니다. |
+| Gemini CLI 0.68.0 (`gemini -p`, API 키) | `setup gemini`로 실제 스택에서 확인: 메트릭, 이벤트, 트레이스. 도구 호출은 `gemini_cli.tool_call` 이벤트에서 옵니다. 비용 메트릭은 없습니다. |
+
+비대화형 모드와 위에 적은 인증 방식만 돌려 봤습니다. 개인 Google 로그인으로는 Google이 이 클라이언트를 거부해서("no longer supported for Gemini Code Assist for individuals") Gemini CLI는 AI Studio API 키로 확인했습니다.
 
 ### delta temporality 함정
 
@@ -193,11 +211,21 @@ Claude Code, Codex, Gemini CLI는 기본적으로 카운터를 delta temporality
 
 **Agent sessions and traces**: 세션별 비용과 토큰, Tempo의 interaction 트레이스, 트레이스 워터폴(Trace ID 칸에 ID 입력), 모델 요청 시간, 유형별 이벤트 수, 선택한 세션의 이벤트 흐름.
 
-모든 레이블은 각 에이전트가 설정하는 `service.name`에서 만든 `agent_name`(`claude-code`, `codex`, `gemini-cli`)으로 통일합니다. 바꾸려면 에이전트에 `OTEL_RESOURCE_ATTRIBUTES=agent.name=<이름>`을 설정합니다. Claude Code 자체의 `agent.name` 속성(서브에이전트 이름)은 `subagent.name`으로 남습니다.
+모든 레이블은 각 에이전트가 설정하는 `service.name`에서 만든 `agent_name`(`claude-code`, `codex`, `gemini-cli`)으로 통일합니다. 바꾸려면 에이전트에 `OTEL_RESOURCE_ATTRIBUTES=agent.name=<이름>`을 설정합니다. Claude Code 자체의 `agent.name` 속성(서브에이전트 이름)과 Codex의 `agent_name` 속성(에이전트 경로, 메인 에이전트는 `/root`)은 `subagent.name`으로 남습니다. Codex의 `conversation.id`는 `session.id`로, `token_type`은 `type`으로 복사합니다.
 
-Claude Code 2.1.325에서 Prometheus에 실제로 들어온 메트릭 이름: `claude_code_cost_usage_USD_total`, `claude_code_token_usage_tokens_total`, `claude_code_session_count_total`, `claude_code_active_time_seconds_total`. collector가 만드는 것: `agent_otel_kit_tool_duration_milliseconds_{bucket,count,sum}`. Claude Code에는 `claude_code.lines_of_code.count`, `claude_code.commit.count`, `claude_code.pull_request.count`, `claude_code.code_edit_tool.decision`도 있지만 편집, 커밋, PR이 있어야 나타납니다.
+토큰 합계에는 서로 겹치지 않는 유형만 더합니다. Codex는 캐시 입력을 `input`에, reasoning을 `output`에 포함해 세고, Gemini CLI는 `cache`를 `input`에 포함해 세므로 이 부분(과 Codex의 `total`)은 다시 더하지 않습니다. Claude Code의 `cacheRead`, `cacheCreation`은 `input`과 별개라서 더합니다.
 
-스크린샷은 작성자 컴퓨터에서 실제 Claude Code 세션을 돌린 이 스택에서 찍었습니다(`make demo`, `make screenshots`).
+대시보드에서 보이는 에이전트별 차이:
+
+- Codex는 실행은 됐지만 0이 아닌 코드로 끝난 셸 명령도 성공한 도구 호출로 기록합니다. code mode에서는 안쪽 `exec_command`마다 바깥 `exec` 도구도 함께 기록합니다.
+- Codex는 짧은 내부 트레이스(`auth`, `fs.read_file` 등)를 많이 보내므로, 트레이스 패널에는 Codex의 `turn/start`만 보입니다. Gemini CLI에는 프롬프트 단위 트레이스가 없고, 모델 호출마다 `llm_call`, 도구 묶음마다 `schedule_tool_calls` 트레이스를 보냅니다.
+- Codex는 기본 WebSocket 전송에서는 요청별 모델 소요 시간을 기록하지 않아, 모델 요청 패널에는 HTTP `/responses` 요청만 나옵니다.
+
+Prometheus에 실제로 들어온 메트릭 이름. Claude Code 2.1.325: `claude_code_cost_usage_USD_total`, `claude_code_token_usage_tokens_total`, `claude_code_session_count_total`, `claude_code_active_time_seconds_total`. Codex 0.169.0(짧은 `codex exec` 실행에서 메트릭 74종) 중: `codex_turn_token_usage_{bucket,count,sum}`(레이블 `token_type`), `codex_thread_started_total`, `codex_tool_call_total`, `codex_turn_e2e_duration_ms_milliseconds_*`. Gemini CLI 0.68.0: `gemini_cli_token_usage_total`(레이블 `type`: `input`, `output`, `thought`, `cache`, `tool`), `gemini_cli_session_count_total`, `gemini_cli_tool_call_count_total`, `gemini_cli_api_request_count_total`. collector가 만드는 것: `agent_otel_kit_tool_duration_milliseconds_{bucket,count,sum}`. Claude Code에는 `claude_code.lines_of_code.count`, `claude_code.commit.count`, `claude_code.pull_request.count`, `claude_code.code_edit_tool.decision`도 있지만 편집, 커밋, PR이 있어야 나타납니다.
+
+Loki에서 본 이벤트 이름: Claude Code `tool_result`, `tool_decision`, `api_request`, `user_prompt` 등; Codex `codex.tool_result`, `codex.tool_decision`, `codex.sse_event`, `codex.api_request`, `codex.user_prompt` 등; Gemini CLI `gemini_cli.tool_call`, `gemini_cli.api_request`, `gemini_cli.api_response`, `gemini_cli.file_operation`, `gemini_cli.user_prompt` 등.
+
+스크린샷은 작성자 컴퓨터에서 실제 세션을 돌린 이 스택에서 찍었습니다: Claude Code(`make demo`), `codex exec`, `gemini -p`, 그다음 `make screenshots`.
 
 ### Perses
 
@@ -215,6 +243,7 @@ Perses가 <http://localhost:8080>에서 `agent-otel-kit` 프로젝트, Prometheu
 - 메트릭이 늦게 들어올 때: Claude Code는 `OTEL_METRIC_EXPORT_INTERVAL`이 없으면 60초마다 메트릭을 보냅니다(setup은 10초로 설정). 이벤트와 span은 5초마다 보냅니다.
 - Claude Code 트레이스가 없을 때: 트레이스 베타는 `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`과 `OTEL_TRACES_EXPORTER=otlp`가 필요합니다.
 - 원본 데이터를 보려면 `make up-debug`로 띄우고 `docker compose logs -f otel-collector`를 봅니다.
+- `make test-collector`는 Codex와 Gemini CLI에서 기록한 payload(`collector/testdata/`)로 collector 설정을 돌려 정규화, 도구 히스토그램, 가림 처리를 확인합니다.
 - collector를 재시작하면 delta→cumulative 상태가 초기화되고, 대시보드는 이를 카운터 리셋으로 처리합니다.
 - 메모리 상한: collector, Prometheus, Loki, Tempo 각 512 MiB, Grafana 384 MiB, Perses 256 MiB.
 - `make clean`은 스택을 멈추고 볼륨을 지웁니다.

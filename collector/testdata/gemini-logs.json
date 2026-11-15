@@ -1,0 +1,23 @@
+{"resourceLogs":[{"resource":{"attributes":[
+  {"key":"service.name","value":{"stringValue":"gemini-cli"}},
+  {"key":"service.version","value":{"stringValue":"v22.23.4"}},
+  {"key":"process.command","value":{"stringValue":"/home/user/.local/bin/gemini"}},
+  {"key":"process.command_args","value":{"arrayValue":{"values":[{"stringValue":"/usr/bin/node"},{"stringValue":"/home/user/.local/bin/gemini"},{"stringValue":"-p"},{"stringValue":"secret prompt text"}]}}},
+  {"key":"session.id","value":{"stringValue":"00000000-0000-4000-8000-000000000002"}}]},
+ "scopeLogs":[{"scope":{"name":"gemini-cli"},"logRecords":[
+  {"timeUnixNano":"1794714775303000000","body":{"stringValue":"Tool call: read_file. Decision: accept. Success: false. Duration: 9ms."},"attributes":[
+   {"key":"session.id","value":{"stringValue":"00000000-0000-4000-8000-000000000002"}},
+   {"key":"event.name","value":{"stringValue":"gemini_cli.tool_call"}},
+   {"key":"function_name","value":{"stringValue":"read_file"}},
+   {"key":"function_args","value":{"stringValue":"{\"file_path\":\"/home/user/work/missing.txt\"}"}},
+   {"key":"duration_ms","value":{"intValue":"9"}},
+   {"key":"success","value":{"boolValue":false}},
+   {"key":"decision","value":{"stringValue":"accept"}},
+   {"key":"tool_type","value":{"stringValue":"native"}},
+   {"key":"error.message","value":{"stringValue":"File not found: /home/user/work/missing.txt"}},
+   {"key":"error.type","value":{"stringValue":"file_not_found"}}]},
+  {"timeUnixNano":"1794714775298000000","body":{"stringValue":"File operation: read. Lines: 7."},"attributes":[
+   {"key":"event.name","value":{"stringValue":"gemini_cli.file_operation"}},
+   {"key":"tool_name","value":{"stringValue":"read_file"}},
+   {"key":"operation","value":{"stringValue":"read"}},
+   {"key":"duration_ms","value":{"intValue":"3"}}]}]}]}]}

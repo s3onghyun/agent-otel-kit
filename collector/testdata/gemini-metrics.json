@@ -1,0 +1,7 @@
+{"resourceMetrics":[{"resource":{"attributes":[
+  {"key":"service.name","value":{"stringValue":"gemini-cli"}},
+  {"key":"process.command_args","value":{"arrayValue":{"values":[{"stringValue":"gemini"},{"stringValue":"-p"},{"stringValue":"secret prompt text"}]}}}]},
+ "scopeMetrics":[{"scope":{"name":"gemini-cli"},"metrics":[
+  {"name":"gemini_cli.token.usage","sum":{"aggregationTemporality":1,"isMonotonic":true,"dataPoints":[
+   {"startTimeUnixNano":"1794714748202000000","timeUnixNano":"1794714758202000000","asInt":"975",
+    "attributes":[{"key":"model","value":{"stringValue":"test-model"}},{"key":"type","value":{"stringValue":"input"}}]}]}}]}]}]}

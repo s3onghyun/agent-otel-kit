@@ -76,7 +76,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "All token types (input, output, cache) in the selected range.",
+      "description": "All tokens in the selected range. Cached input that Codex and Gemini CLI count inside input is not added again.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -113,7 +113,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total\", agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored))",
+          "expr": "sum(increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum\", agent_name=~\"$agent\", model=~\"$model\", type!~\"total|cached_input|cache_write_input|reasoning_output|cache\"}[$__range] anchored))",
           "instant": true,
           "legendFormat": "",
           "range": false,
@@ -128,7 +128,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Sessions started in the selected range (Claude Code and Gemini CLI).",
+      "description": "Sessions started in the selected range (Claude Code and Gemini CLI sessions, Codex threads).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -165,7 +165,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase({__name__=~\"claude_code_session_count_total|gemini_cli_session_count_total\", agent_name=~\"$agent\"}[$__range] anchored))",
+          "expr": "sum(increase({__name__=~\"claude_code_session_count_total|gemini_cli_session_count_total|codex_thread_started_total\", agent_name=~\"$agent\"}[$__range] anchored))",
           "instant": true,
           "legendFormat": "",
           "range": false,
@@ -339,7 +339,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (agent_name, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total\", agent_name=~\"$agent\", model=~\"$model\"}[$__interval] anchored))",
+          "expr": "sum by (agent_name, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum\", agent_name=~\"$agent\", model=~\"$model\", type!~\"total|cached_input|cache_write_input|reasoning_output|cache\"}[$__interval] anchored))",
           "legendFormat": "{{agent_name}} {{type}}",
           "range": true,
           "refId": "A"
@@ -448,7 +448,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sort_desc(sum by (agent_name, model, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total\", agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored)))",
+          "expr": "sort_desc(sum by (agent_name, model, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum\", agent_name=~\"$agent\", model=~\"$model\", type!~\"total|cached_input|cache_write_input|reasoning_output|cache\"}[$__range] anchored)))",
           "format": "table",
           "instant": true,
           "legendFormat": "",

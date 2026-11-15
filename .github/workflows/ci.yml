@@ -41,6 +41,8 @@ jobs:
           image=$(sed -n 's/^OTELCOL_IMAGE := //p' Makefile)
           docker run --rm -v "$PWD/collector:/c:ro" "$image" validate --config=/c/config.yaml
           docker run --rm -v "$PWD/collector:/c:ro" "$image" validate --config=/c/config.yaml --config=/c/debug.yaml
+      - name: collector transforms on recorded agent payloads
+        run: scripts/test-collector.sh
       - name: collector image matches compose.yaml
         run: |
           image=$(sed -n 's/^OTELCOL_IMAGE := //p' Makefile)

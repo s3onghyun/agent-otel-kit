@@ -1,0 +1,24 @@
+{"resourceLogs":[{"resource":{"attributes":[
+  {"key":"service.name","value":{"stringValue":"codex_exec"}},
+  {"key":"service.version","value":{"stringValue":"0.169.0"}},
+  {"key":"env","value":{"stringValue":"dev"}}]},
+ "scopeLogs":[{"scope":{"name":"codex_otel.log_only"},"logRecords":[
+  {"observedTimeUnixNano":"1794713449263994965","severityText":"INFO","severityNumber":9,"attributes":[
+   {"key":"event.name","value":{"stringValue":"codex.tool_decision"}},
+   {"key":"tool_name","value":{"stringValue":"exec_command"}},
+   {"key":"decision","value":{"stringValue":"approved"}},
+   {"key":"source","value":{"stringValue":"Config"}},
+   {"key":"conversation.id","value":{"stringValue":"00000000-0000-7000-8000-000000000001"}},
+   {"key":"model","value":{"stringValue":"test-model"}}]},
+  {"observedTimeUnixNano":"1794713449264018012","severityText":"INFO","severityNumber":9,"attributes":[
+   {"key":"event.name","value":{"stringValue":"codex.tool_result"}},
+   {"key":"tool_result_seq","value":{"intValue":"1"}},
+   {"key":"tool_name","value":{"stringValue":"exec_command"}},
+   {"key":"tool_namespace","value":{"stringValue":"functions"}},
+   {"key":"duration_ms","value":{"stringValue":"52"}},
+   {"key":"success","value":{"stringValue":"true"}},
+   {"key":"output_truncated","value":{"boolValue":false}},
+   {"key":"agent_name","value":{"stringValue":"/root"}},
+   {"key":"conversation.id","value":{"stringValue":"00000000-0000-7000-8000-000000000001"}},
+   {"key":"output","value":{"stringValue":"cat: missing.txt: No such file or directory"}},
+   {"key":"model","value":{"stringValue":"test-model"}}]}]}]}]}
