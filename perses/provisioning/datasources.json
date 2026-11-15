@@ -1,0 +1,62 @@
+[
+  {
+    "kind": "GlobalDatasource",
+    "metadata": {
+      "name": "prometheus"
+    },
+    "spec": {
+      "default": true,
+      "plugin": {
+        "kind": "PrometheusDatasource",
+        "spec": {
+          "proxy": {
+            "kind": "HTTPProxy",
+            "spec": {
+              "url": "http://prometheus:9090"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "kind": "GlobalDatasource",
+    "metadata": {
+      "name": "loki"
+    },
+    "spec": {
+      "default": true,
+      "plugin": {
+        "kind": "LokiDatasource",
+        "spec": {
+          "proxy": {
+            "kind": "HTTPProxy",
+            "spec": {
+              "url": "http://loki:3100"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "kind": "GlobalDatasource",
+    "metadata": {
+      "name": "tempo"
+    },
+    "spec": {
+      "default": true,
+      "plugin": {
+        "kind": "TempoDatasource",
+        "spec": {
+          "proxy": {
+            "kind": "HTTPProxy",
+            "spec": {
+              "url": "http://tempo:3200"
+            }
+          }
+        }
+      }
+    }
+  }
+]

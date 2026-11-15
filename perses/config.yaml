@@ -1,0 +1,18 @@
+# Perses server configuration for agent-otel-kit (docker compose --profile perses).
+security:
+  readonly: false
+  enable_auth: false
+
+database:
+  file:
+    folder: /perses
+    extension: json
+
+provisioning:
+  interval: 30s
+  folders:
+    - /etc/perses/provisioning
+
+frontend:
+  explorer:
+    enable: true

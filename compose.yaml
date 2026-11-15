@@ -34,7 +34,7 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=30d
-      - --enable-feature=created-timestamp-zero-ingestion
+      - --enable-feature=created-timestamp-zero-ingestion,promql-extended-range-selectors
       - --web.enable-lifecycle
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
