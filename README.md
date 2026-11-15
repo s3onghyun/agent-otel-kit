@@ -81,6 +81,8 @@ All three exist in Grafana (`grafana/dashboards/`) and Perses (`perses/provision
 
 **Agent cost and tokens**: cost, tokens, sessions and active time for the range; cost per interval by model; tokens per interval by type; cost by model; tokens by agent, model and type; the most expensive sessions.
 
+![Grafana: agent cost and tokens](docs/screenshots/grafana-cost-tokens.png)
+
 **Agent tool calls**: call count, failures, success rate and p95 duration; calls per interval and p95 duration by tool; a per-tool table; permission decisions (who allowed each call); failed calls from Loki. The tool metric `agent_otel_kit.tool.duration` is built in the collector by the `signal_to_metrics` connector from each agent's tool result events, so it is the same for all agents.
 
 ![Grafana: agent tool calls](docs/screenshots/grafana-tool-calls.png)
