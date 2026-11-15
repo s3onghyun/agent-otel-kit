@@ -519,7 +519,7 @@
         "type": "loki",
         "uid": "loki"
       },
-      "description": "tool_decision events: who allowed or rejected each tool call (config, user, hook, classifier).",
+      "description": "Who allowed or rejected each tool call: Claude Code and Codex tool_decision events (with source), Gemini CLI tool_call events.",
       "fieldConfig": {
         "defaults": {},
         "overrides": [
@@ -554,7 +554,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (tool_name, decision, source) (count_over_time({service_name=~\".+\", agent_name=~\"$agent\"} | event_name=\"tool_decision\" [$__range]))",
+          "expr": "sum by (tool_name, decision, source) (count_over_time({service_name=~\".+\", agent_name=~\"$agent\"} | event_name=~\"tool_decision|codex.tool_decision|gemini_cli.tool_call\" [$__range]))",
           "legendFormat": "",
           "queryType": "instant",
           "refId": "A"

@@ -1,0 +1,8 @@
+{"resourceMetrics":[{"resource":{"attributes":[
+  {"key":"service.name","value":{"stringValue":"codex_exec"}}]},
+ "scopeMetrics":[{"scope":{"name":"codex"},"metrics":[
+  {"name":"codex.turn.token_usage","histogram":{"aggregationTemporality":1,"dataPoints":[
+   {"startTimeUnixNano":"1794713440000000000","timeUnixNano":"1794713450000000000","count":"1","sum":7019,"bucketCounts":["0","1"],"explicitBounds":[1000],
+    "attributes":[{"key":"model","value":{"stringValue":"test-model"}},{"key":"token_type","value":{"stringValue":"input"}}]},
+   {"startTimeUnixNano":"1794713440000000000","timeUnixNano":"1794713450000000000","count":"1","sum":225,"bucketCounts":["1","0"],"explicitBounds":[1000],
+    "attributes":[{"key":"model","value":{"stringValue":"test-model"}},{"key":"token_type","value":{"stringValue":"output"}}]}]}}]}]}]}

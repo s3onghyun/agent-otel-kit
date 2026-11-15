@@ -72,6 +72,9 @@ processors:
           # called agent.name. Keep it as subagent.name so it does not clash.
           - set(datapoint.attributes["subagent.name"], datapoint.attributes["agent.name"]) where datapoint.attributes["agent.name"] != nil and datapoint.attributes["agent.name"] != resource.attributes["agent.name"]
           - set(datapoint.attributes["agent.name"], resource.attributes["agent.name"])
+          # Codex labels its token histogram with token_type; the dashboards
+          # group tokens by type like Claude Code and Gemini CLI.
+          - set(datapoint.attributes["type"], datapoint.attributes["token_type"]) where metric.name == "codex.turn.token_usage" and datapoint.attributes["token_type"] != nil
           # signal_to_metrics emits delta points without a start time. Give
           # them one just before the point, so the cumulative series gets a
           # start (created) time and Prometheus can insert its zero sample;
@@ -86,6 +89,14 @@ processors:
           # the agent_name label); a record-level copy would shadow it.
           - set(log.attributes["subagent.name"], log.attributes["agent.name"]) where log.attributes["agent.name"] != nil and log.attributes["agent.name"] != resource.attributes["agent.name"]
           - delete_key(log.attributes, "agent.name")
+          # Codex puts its agent path ("/root" for the main agent) into
+          # agent_name, which Loki would store next to the agent_name label
+          # as agent_name_extracted. Keep it as subagent.name.
+          - set(log.attributes["subagent.name"], log.attributes["agent_name"]) where log.attributes["agent_name"] != nil and log.attributes["subagent.name"] == nil
+          - delete_key(log.attributes, "agent_name")
+          # Codex calls the session conversation.id; the dashboards filter on
+          # session.id like Claude Code and Gemini CLI.
+          - set(log.attributes["session.id"], log.attributes["conversation.id"]) where log.attributes["session.id"] == nil and log.attributes["conversation.id"] != nil
           # Normalized tool fields: Claude Code and Codex use tool_name,
           # Gemini CLI uses function_name.
           - set(log.attributes["tool.name"], log.attributes["tool_name"]) where log.attributes["tool_name"] != nil and IsMatch(log.attributes["event.name"], "^(tool_result|codex\\.tool_result)$")
@@ -105,6 +116,9 @@ processors:
       - context: resource
         statements:
           - delete_key(resource.attributes, "user.email") where "${env:AGENT_OTEL_KIT_KEEP_EMAIL:-false}" != "true"
+          # Gemini CLI sends its command line as a resource attribute, which
+          # holds the prompt of a gemini -p "..." run.
+          - delete_matching_keys(resource.attributes, "^process\\.command_(args|line)$") where "${env:AGENT_OTEL_KIT_CAPTURE_CONTENT:-false}" != "true"
       - context: datapoint
         statements:
           - delete_key(datapoint.attributes, "user.email") where "${env:AGENT_OTEL_KIT_KEEP_EMAIL:-false}" != "true"
@@ -112,21 +126,27 @@ processors:
       - context: resource
         statements:
           - delete_key(resource.attributes, "user.email") where "${env:AGENT_OTEL_KIT_KEEP_EMAIL:-false}" != "true"
+          # Gemini CLI sends its command line as a resource attribute, which
+          # holds the prompt of a gemini -p "..." run.
+          - delete_matching_keys(resource.attributes, "^process\\.command_(args|line)$") where "${env:AGENT_OTEL_KIT_CAPTURE_CONTENT:-false}" != "true"
       - context: log
         statements:
           - delete_key(log.attributes, "user.email") where "${env:AGENT_OTEL_KIT_KEEP_EMAIL:-false}" != "true"
-          - delete_matching_keys(log.attributes, "^(prompt|prompt_text|response|response_text|request_text|system_prompt|tool_parameters|tool_input|tool_output|function_args|arguments|output|error|body|body_ref|file_path|full_command|bash_command|rationale|reasoning|gen_ai\\.input\\.messages|gen_ai\\.output\\.messages|gen_ai\\.system_instructions)$") where "${env:AGENT_OTEL_KIT_CAPTURE_CONTENT:-false}" != "true"
+          - delete_matching_keys(log.attributes, "^(prompt|prompt_text|response|response_text|request_text|system_prompt|tool_parameters|tool_input|tool_output|function_args|arguments|output|error|error\\.message|error_message|body|body_ref|file_path|full_command|bash_command|rationale|reasoning|gen_ai\\.input\\.messages|gen_ai\\.output\\.messages|gen_ai\\.system_instructions)$") where "${env:AGENT_OTEL_KIT_CAPTURE_CONTENT:-false}" != "true"
     trace_statements:
       - context: resource
         statements:
           - delete_key(resource.attributes, "user.email") where "${env:AGENT_OTEL_KIT_KEEP_EMAIL:-false}" != "true"
+          # Gemini CLI sends its command line as a resource attribute, which
+          # holds the prompt of a gemini -p "..." run.
+          - delete_matching_keys(resource.attributes, "^process\\.command_(args|line)$") where "${env:AGENT_OTEL_KIT_CAPTURE_CONTENT:-false}" != "true"
       - context: span
         statements:
           - delete_key(span.attributes, "user.email") where "${env:AGENT_OTEL_KIT_KEEP_EMAIL:-false}" != "true"
-          - delete_matching_keys(span.attributes, "^(user_prompt|prompt|response\\.model_output|new_context|system_reminders|system_prompt_preview|user_system_prompt|tool_input|file_path|full_command|error|gen_ai\\.input\\.messages|gen_ai\\.output\\.messages|gen_ai\\.system_instructions|gen_ai\\.tool\\.call\\.arguments|gen_ai\\.tool\\.call\\.result)$") where "${env:AGENT_OTEL_KIT_CAPTURE_CONTENT:-false}" != "true"
+          - delete_matching_keys(span.attributes, "^(user_prompt|prompt|response\\.model_output|new_context|system_reminders|system_prompt_preview|user_system_prompt|tool_input|file_path|full_command|error|error\\.message|error_message|gen_ai\\.input\\.messages|gen_ai\\.output\\.messages|gen_ai\\.system_instructions|gen_ai\\.tool\\.call\\.arguments|gen_ai\\.tool\\.call\\.result)$") where "${env:AGENT_OTEL_KIT_CAPTURE_CONTENT:-false}" != "true"
       - context: spanevent
         statements:
-          - delete_matching_keys(spanevent.attributes, "^(content|output|diff|file_path|bash_command|prompt|gen_ai\\.input\\.messages|gen_ai\\.output\\.messages)$") where "${env:AGENT_OTEL_KIT_CAPTURE_CONTENT:-false}" != "true"
+          - delete_matching_keys(spanevent.attributes, "^(content|output|diff|file_path|bash_command|prompt|exception\\.message|exception\\.stacktrace|gen_ai\\.input\\.messages|gen_ai\\.output\\.messages)$") where "${env:AGENT_OTEL_KIT_CAPTURE_CONTENT:-false}" != "true"
 
   # All three agents export metrics with delta temporality by default.
   # Prometheus only understands cumulative counters, so convert here.

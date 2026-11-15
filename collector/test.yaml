@@ -1,0 +1,18 @@
+# Overlay for scripts/test-collector.sh: writes what leaves the processors to
+# files instead of Prometheus, Loki and Tempo. Not part of the stack.
+exporters:
+  file/metrics:
+    path: /out/metrics.json
+  file/logs:
+    path: /out/logs.json
+  file/traces:
+    path: /out/traces.json
+
+service:
+  pipelines:
+    metrics:
+      exporters: [file/metrics]
+    logs:
+      exporters: [file/logs, signal_to_metrics]
+    traces:
+      exporters: [file/traces]
