@@ -82,7 +82,7 @@ All three exist in Grafana (`grafana/dashboards/`) and Perses (`perses/provision
 
 Every label is normalized to `agent_name` (`claude-code`, `codex`, `gemini-cli`), derived from the `service.name` each agent sets. Set `OTEL_RESOURCE_ATTRIBUTES=agent.name=<name>` on an agent to override it. Claude Code's own `agent.name` attribute (the subagent name) and Codex's `agent_name` attribute (the agent path, `/root` for the main agent) are kept as `subagent.name`. Codex's `conversation.id` is copied to `session.id`, and its `token_type` to `type`.
 
-Token totals add only token types that do not overlap: Codex counts cached input inside `input` and reasoning inside `output`, and Gemini CLI counts `cache` inside `input`, so those parts (and Codex's `total`) are not added again. Claude Code's `cacheRead` and `cacheCreation` are separate from `input` and are added.
+Token totals (the Tokens stat and the per-session Tokens column) add only token types that do not overlap: Codex counts cached input inside `input` and reasoning inside `output`, and Gemini CLI counts `cache` inside `input`, so those parts (and Codex's `total`) are not added again. Claude Code's `cacheRead` and `cacheCreation` are separate from `input` and are added. The per-type breakdowns show every type, including the overlapping ones.
 
 Agent differences visible on the dashboards:
 
@@ -213,7 +213,7 @@ Claude Code, Codex, Gemini CLI는 기본적으로 카운터를 delta temporality
 
 모든 레이블은 각 에이전트가 설정하는 `service.name`에서 만든 `agent_name`(`claude-code`, `codex`, `gemini-cli`)으로 통일합니다. 바꾸려면 에이전트에 `OTEL_RESOURCE_ATTRIBUTES=agent.name=<이름>`을 설정합니다. Claude Code 자체의 `agent.name` 속성(서브에이전트 이름)과 Codex의 `agent_name` 속성(에이전트 경로, 메인 에이전트는 `/root`)은 `subagent.name`으로 남습니다. Codex의 `conversation.id`는 `session.id`로, `token_type`은 `type`으로 복사합니다.
 
-토큰 합계에는 서로 겹치지 않는 유형만 더합니다. Codex는 캐시 입력을 `input`에, reasoning을 `output`에 포함해 세고, Gemini CLI는 `cache`를 `input`에 포함해 세므로 이 부분(과 Codex의 `total`)은 다시 더하지 않습니다. Claude Code의 `cacheRead`, `cacheCreation`은 `input`과 별개라서 더합니다.
+토큰 합계(Tokens 통계와 세션별 Tokens 열)에는 서로 겹치지 않는 유형만 더합니다. Codex는 캐시 입력을 `input`에, reasoning을 `output`에 포함해 세고, Gemini CLI는 `cache`를 `input`에 포함해 세므로 이 부분(과 Codex의 `total`)은 다시 더하지 않습니다. Claude Code의 `cacheRead`, `cacheCreation`은 `input`과 별개라서 더합니다. 유형별 분석 패널에는 겹치는 유형을 포함해 모든 유형이 표시됩니다.
 
 대시보드에서 보이는 에이전트별 차이:
 

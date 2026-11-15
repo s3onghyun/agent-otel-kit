@@ -95,17 +95,21 @@ func intervalDelta(sel string) string {
 
 const (
 	costSel = `claude_code_cost_usage_USD_total{agent_name=~"$agent", model=~"$model"}`
-	// Token types that are parts of other types are left out so the sums
-	// are exact. Claude Code reports disjoint types (cacheRead is not part
+	// Token types that are parts of other types are left out of summed
+	// totals (tokenSel) so the sums are exact; per-type breakdowns
+	// (tokenAllSel) show every type. Claude Code reports disjoint types (cacheRead is not part
 	// of input). Codex reports tokens per turn as a histogram
 	// (codex.turn.token_usage, whose _sum is a counter) and counts cached
 	// input inside input and reasoning inside output, plus a total. Gemini
 	// CLI counts cache inside input; its thought and tool tokens are extra.
-	tokenSel   = `{__name__=~"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum", agent_name=~"$agent", model=~"$model", type!~"total|cached_input|cache_write_input|reasoning_output|cache"}`
-	sessionSel = `{__name__=~"claude_code_session_count_total|gemini_cli_session_count_total|codex_thread_started_total", agent_name=~"$agent"}`
-	toolCount  = `agent_otel_kit_tool_duration_milliseconds_count{agent_name=~"$agent", tool_name=~"$tool"}`
-	toolBucket = `agent_otel_kit_tool_duration_milliseconds_bucket{agent_name=~"$agent", tool_name=~"$tool"}`
-	toolFailed = `agent_otel_kit_tool_duration_milliseconds_count{agent_name=~"$agent", tool_name=~"$tool", tool_success="false"}`
+	tokenOverlap  = `type!~"total|cached_input|cache_write_input|reasoning_output|cache"`
+	tokenAllSel   = `{__name__=~"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum", agent_name=~"$agent", model=~"$model"}`
+	tokenSel      = `{__name__=~"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum", agent_name=~"$agent", model=~"$model", ` + tokenOverlap + `}`
+	tokenTypeDesc = "Codex cached_input, cache_write_input, reasoning_output and total and Gemini CLI cache overlap with input or output and are left out of the Tokens total."
+	sessionSel    = `{__name__=~"claude_code_session_count_total|gemini_cli_session_count_total|codex_thread_started_total", agent_name=~"$agent"}`
+	toolCount     = `agent_otel_kit_tool_duration_milliseconds_count{agent_name=~"$agent", tool_name=~"$tool"}`
+	toolBucket    = `agent_otel_kit_tool_duration_milliseconds_bucket{agent_name=~"$agent", tool_name=~"$tool"}`
+	toolFailed    = `agent_otel_kit_tool_duration_milliseconds_count{agent_name=~"$agent", tool_name=~"$tool", tool_success="false"}`
 )
 
 // traceRoots are the root spans of the traces worth listing. Codex also
@@ -140,13 +144,13 @@ func dashboards() []dashboard {
 
 			{id: "cost_rate", title: "Cost per interval by model", kind: timeseries, unit: "currencyUSD", decimals: 4, stacked: true, x: 0, y: 4, w: 12, h: 9,
 				queries: []query{{ds: prom, expr: `sum by (agent_name, model) (` + intervalDelta(costSel) + `)`, legend: "{{agent_name}} {{model}}"}}},
-			{id: "token_rate", title: "Tokens per interval by type", kind: timeseries, unit: "short", stacked: true, x: 12, y: 4, w: 12, h: 9,
-				queries: []query{{ds: prom, expr: `sum by (agent_name, type) (` + intervalDelta(tokenSel) + `)`, legend: "{{agent_name}} {{type}}"}}},
+			{id: "token_rate", title: "Tokens per interval by type", desc: tokenTypeDesc, kind: timeseries, unit: "short", stacked: true, x: 12, y: 4, w: 12, h: 9,
+				queries: []query{{ds: prom, expr: `sum by (agent_name, type) (` + intervalDelta(tokenAllSel) + `)`, legend: "{{agent_name}} {{type}}"}}},
 
 			{id: "cost_by_model", title: "Cost by model", kind: bars, unit: "currencyUSD", decimals: 4, x: 0, y: 13, w: 12, h: 8,
 				queries: []query{{ds: prom, expr: `sort_desc(sum by (agent_name, model) (` + rangeTotal(costSel) + `))`, legend: "{{agent_name}} {{model}}", instant: true}}},
-			{id: "tokens_by_model", title: "Tokens by agent, model and type", kind: table, x: 12, y: 13, w: 12, h: 8,
-				queries: []query{{ds: prom, expr: `sort_desc(sum by (agent_name, model, type) (` + rangeTotal(tokenSel) + `))`, instant: true}},
+			{id: "tokens_by_model", title: "Tokens by agent, model and type", desc: tokenTypeDesc, kind: table, x: 12, y: 13, w: 12, h: 8,
+				queries: []query{{ds: prom, expr: `sort_desc(sum by (agent_name, model, type) (` + rangeTotal(tokenAllSel) + `))`, instant: true}},
 				columns: []column{{"agent_name", "Agent", ""}, {"model", "Model", ""}, {"type", "Type", ""}, {"value", "Tokens", "short"}}},
 
 			{id: "top_sessions", title: "Most expensive sessions", kind: table, x: 0, y: 21, w: 24, h: 8,
@@ -214,7 +218,7 @@ func dashboards() []dashboard {
 			{id: "sessions", title: "Sessions", desc: "Lifetime cost and tokens of each session seen in the range.", kind: table, x: 0, y: 0, w: 10, h: 10,
 				queries: []query{
 					{ds: prom, expr: `sort_desc(sum by (agent_name, session_id) (max_over_time(claude_code_cost_usage_USD_total{agent_name=~"$agent", session_id=~"$session"}[$__range])))`, instant: true},
-					{ds: prom, expr: `sum by (agent_name, session_id) (max_over_time({__name__=~"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total", agent_name=~"$agent", session_id=~"$session"}[$__range]))`, instant: true},
+					{ds: prom, expr: `sum by (agent_name, session_id) (max_over_time({__name__=~"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total", agent_name=~"$agent", session_id=~"$session", ` + tokenOverlap + `}[$__range]))`, instant: true},
 				},
 				joinOn:  []string{"agent_name", "session_id"},
 				columns: []column{{"session_id", "Session", ""}, {"agent_name", "Agent", ""}, {"value #1", "Cost (USD)", "currencyUSD"}, {"value #2", "Tokens", "short"}}},

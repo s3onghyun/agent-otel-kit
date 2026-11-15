@@ -283,6 +283,7 @@
         "kind": "Panel",
         "spec": {
           "display": {
+            "description": "Codex cached_input, cache_write_input, reasoning_output and total and Gemini CLI cache overlap with input or output and are left out of the Tokens total.",
             "name": "Tokens per interval by type"
           },
           "plugin": {
@@ -315,7 +316,7 @@
                   "kind": "PrometheusTimeSeriesQuery",
                   "spec": {
                     "minStep": "1m",
-                    "query": "sum by (agent_name, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum\", agent_name=~\"$agent\", model=~\"$model\", type!~\"total|cached_input|cache_write_input|reasoning_output|cache\"}[$__interval] anchored))",
+                    "query": "sum by (agent_name, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum\", agent_name=~\"$agent\", model=~\"$model\"}[$__interval] anchored))",
                     "seriesNameFormat": "{{agent_name}} {{type}}"
                   }
                 }
@@ -328,6 +329,7 @@
         "kind": "Panel",
         "spec": {
           "display": {
+            "description": "Codex cached_input, cache_write_input, reasoning_output and total and Gemini CLI cache overlap with input or output and are left out of the Tokens total.",
             "name": "Tokens by agent, model and type"
           },
           "plugin": {
@@ -384,7 +386,7 @@
                   "kind": "PrometheusTimeSeriesQuery",
                   "spec": {
                     "instant": true,
-                    "query": "sort_desc(sum by (agent_name, model, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum\", agent_name=~\"$agent\", model=~\"$model\", type!~\"total|cached_input|cache_write_input|reasoning_output|cache\"}[$__range] anchored)))"
+                    "query": "sort_desc(sum by (agent_name, model, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum\", agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored)))"
                   }
                 }
               }

@@ -299,7 +299,7 @@
                   "kind": "PrometheusTimeSeriesQuery",
                   "spec": {
                     "instant": true,
-                    "query": "sum by (agent_name, session_id) (max_over_time({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total\", agent_name=~\"$agent\", session_id=~\"$session\"}[$__range]))"
+                    "query": "sum by (agent_name, session_id) (max_over_time({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total\", agent_name=~\"$agent\", session_id=~\"$session\", type!~\"total|cached_input|cache_write_input|reasoning_output|cache\"}[$__range]))"
                   }
                 }
               }
