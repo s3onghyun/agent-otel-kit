@@ -1,0 +1,23 @@
+# my codex config
+model = "gpt-5"
+approval_policy = "on-request"
+
+[otel]
+# agent-otel-kit: begin (remove with `agent-otel-kit setup --undo codex`)
+exporter = { otlp-http = { endpoint = "http://localhost:4318/v1/logs", protocol = "binary" } }
+trace_exporter = { otlp-http = { endpoint = "http://localhost:4318/v1/traces", protocol = "binary" } }
+metrics_exporter = { otlp-http = { endpoint = "http://localhost:4318/v1/metrics", protocol = "binary" } }
+log_user_prompt = false
+# agent-otel-kit: end
+environment = "staging"
+log_sse_deltas = false
+
+[otel.span_attributes]
+"team" = "platform"
+
+[profiles.fast]
+model = "gpt-5-mini"
+instructions = """
+[otel]
+not a table
+"""

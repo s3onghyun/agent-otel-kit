@@ -1,0 +1,14 @@
+{
+  "theme": "GitHub",
+  "telemetry": {
+    "enabled": true,
+    "useCollector": false,
+    "target": "local",
+    "otlpEndpoint": "http://localhost:4318",
+    "otlpProtocol": "http",
+    "logPrompts": false
+  },
+  "general": {
+    "vimMode": true
+  }
+}

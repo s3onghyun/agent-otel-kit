@@ -1,0 +1,9 @@
+{
+  "telemetry": {
+    "enabled": true,
+    "target": "local",
+    "otlpEndpoint": "http://localhost:4318",
+    "otlpProtocol": "http",
+    "logPrompts": false
+  }
+}

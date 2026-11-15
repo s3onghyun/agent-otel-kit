@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": ["Bash(ls:*)", "Read"]
+  },
+  "env": {
+    "MY_VAR": "keep me",
+    "OTEL_TRACES_EXPORTER": "none"
+  },
+  "model": "sonnet",
+  "statusLine": {"type": "command", "command": "echo <&> hi"}
+}
