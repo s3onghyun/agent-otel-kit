@@ -2,7 +2,7 @@ COMPOSE ?= docker compose
 BIN     ?= bin/agent-otel-kit
 OTELCOL_IMAGE := otel/opentelemetry-collector-contrib:0.164.0@sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b
 
-.PHONY: help up up-perses up-debug down clean demo doctor screenshots build test test-collector lint dashboards validate
+.PHONY: help up up-perses up-debug down clean demo doctor screenshots build test test-collector check-collector-warnings lint dashboards validate
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-15s %s\n", $$1, $$2}'
@@ -40,6 +40,9 @@ test: ## Run Go tests
 
 test-collector: ## Run the collector config against recorded agent payloads (needs docker)
 	scripts/test-collector.sh
+
+check-collector-warnings: ## Start the collector briefly and fail on deprecated or unknown config warnings (needs docker)
+	scripts/check-collector-warnings.sh
 
 lint: ## gofmt and go vet
 	@out="$$(gofmt -l .)"; if [ -n "$$out" ]; then echo "$$out"; exit 1; fi

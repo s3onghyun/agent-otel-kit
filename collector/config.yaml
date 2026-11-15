@@ -163,8 +163,6 @@ exporters:
     # Keep series around for a while after an agent goes quiet so short
     # sessions are still scraped.
     metric_expiration: 1h
-    resource_to_telemetry_conversion:
-      enabled: false
 
   otlp_http/loki:
     endpoint: http://loki:3100/otlp

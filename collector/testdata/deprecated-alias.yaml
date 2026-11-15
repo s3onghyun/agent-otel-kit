@@ -1,0 +1,18 @@
+# Negative fixture for scripts/check-collector-warnings.sh: "otlphttp" is a
+# deprecated alias of otlp_http. `otelcol validate` accepts this file without
+# a word; the collector only warns about the alias when it starts.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 127.0.0.1:4318
+
+exporters:
+  otlphttp:
+    endpoint: http://127.0.0.1:1/otlp
+
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      exporters: [otlphttp]
