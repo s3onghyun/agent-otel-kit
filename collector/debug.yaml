@@ -1,0 +1,14 @@
+# Overlay that adds the debug exporter to every pipeline.
+# Used by compose.debug.yaml (make up-debug). Not part of the default stack.
+exporters:
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    metrics:
+      exporters: [prometheus, debug]
+    logs:
+      exporters: [otlp_http/loki, signal_to_metrics, debug]
+    traces:
+      exporters: [otlp_grpc/tempo, debug]
