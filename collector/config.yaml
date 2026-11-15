@@ -72,6 +72,11 @@ processors:
           # called agent.name. Keep it as subagent.name so it does not clash.
           - set(datapoint.attributes["subagent.name"], datapoint.attributes["agent.name"]) where datapoint.attributes["agent.name"] != nil and datapoint.attributes["agent.name"] != resource.attributes["agent.name"]
           - set(datapoint.attributes["agent.name"], resource.attributes["agent.name"])
+          # signal_to_metrics emits delta points without a start time. Give
+          # them one just before the point, so the cumulative series gets a
+          # start (created) time and Prometheus can insert its zero sample;
+          # otherwise the first increment of every new series is lost.
+          - set(datapoint.start_time_unix_nano, datapoint.time_unix_nano - 1000000) where datapoint.start_time_unix_nano == 0
     log_statements:
       - context: resource
         statements: *agent_resource
