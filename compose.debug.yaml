@@ -1,0 +1,5 @@
+# Adds the debug exporter: every item the collector receives is printed to
+# its log. Use: make up-debug, then docker compose logs -f otel-collector
+services:
+  otel-collector:
+    command: ["--config=/etc/otelcol/config.yaml", "--config=/etc/otelcol/debug.yaml"]

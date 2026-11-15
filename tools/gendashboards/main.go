@@ -167,7 +167,7 @@ func dashboards() []dashboard {
 			{id: "calls_rate", title: "Tool calls per interval by tool", kind: timeseries, unit: "short", stacked: true, x: 0, y: 4, w: 12, h: 9,
 				queries: []query{{ds: prom, expr: `sum by (tool_name) (` + intervalDelta(toolCount) + `)`, legend: "{{tool_name}}"}}},
 			{id: "p95_by_tool", title: "p95 duration by tool", kind: timeseries, unit: "ms", x: 12, y: 4, w: 12, h: 9,
-				queries: []query{{ds: prom, expr: `histogram_quantile(0.95, sum by (le, tool_name) (rate(` + toolBucket + `[$__rate_interval])))`, legend: "{{tool_name}}"}}},
+				queries: []query{{ds: prom, expr: `histogram_quantile(0.95, sum by (le, tool_name) (rate(` + toolBucket + `[$__rate_interval]))) >= 0`, legend: "{{tool_name}}"}}},
 
 			{id: "per_tool", title: "Per tool", kind: table, x: 0, y: 13, w: 14, h: 9,
 				queries: []query{

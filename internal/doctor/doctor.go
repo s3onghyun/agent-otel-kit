@@ -88,7 +88,11 @@ func Run(ctx context.Context, cfg Config) []Result {
 	}
 	for _, p := range probes {
 		if err := get(ctx, cfg.Client, p.url, nil); err != nil {
-			add(Result{Fail, p.name, fmt.Sprintf("%s: %v (is the stack up? make up)", p.url, err)})
+			hint := "is the stack up? make up"
+			if strings.Contains(err.Error(), "HTTP 503") {
+				hint = "still starting? Loki and Tempo answer 503 for up to a minute after start"
+			}
+			add(Result{Fail, p.name, fmt.Sprintf("%s: %v (%s)", p.url, err, hint)})
 		} else {
 			add(Result{OK, p.name, p.url})
 		}
