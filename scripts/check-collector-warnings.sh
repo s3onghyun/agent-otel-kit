@@ -42,16 +42,36 @@ run_case() {
 
   cleanup
   # Same mount, path and environment as compose.yaml.
-  docker run -d --name "$name" --network none \
+  if ! docker run -d --name "$name" --network none \
     -e AGENT_OTEL_KIT_CAPTURE_CONTENT=false \
     -e AGENT_OTEL_KIT_KEEP_EMAIL=false \
     -v "$root/collector:/etc/otelcol:ro" \
-    "$image" "${args[@]}" >/dev/null
+    "$image" "${args[@]}" >/dev/null; then
+    echo "FAIL $label: docker run failed, collector not checked"
+    return 1
+  fi
 
-  local status=""
-  status="$(timeout "$seconds" docker wait "$name" 2>/dev/null)" || true
+  sleep "$seconds"
+  local state status=""
+  if ! state="$(docker inspect -f '{{.State.Running}} {{.State.ExitCode}}' "$name" 2>&1)"; then
+    echo "FAIL $label: docker inspect failed, collector not checked"
+    sed 's/^/  /' <<<"$state"
+    return 1
+  fi
+  case "$state" in
+    "true "*) ;;
+    "false "*) status="${state#false }" ;;
+    *)
+      echo "FAIL $label: unexpected container state '$state', collector not checked"
+      return 1
+      ;;
+  esac
   local log
-  log="$(docker logs "$name" 2>&1)"
+  if ! log="$(docker logs "$name" 2>&1)"; then
+    echo "FAIL $label: docker logs failed, collector not checked"
+    sed 's/^/  /' <<<"$log"
+    return 1
+  fi
   cleanup
 
   local hits
