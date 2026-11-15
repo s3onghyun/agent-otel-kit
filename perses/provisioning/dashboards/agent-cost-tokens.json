@@ -1,0 +1,545 @@
+{
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "agent-cost-tokens",
+    "project": "agent-otel-kit"
+  },
+  "spec": {
+    "display": {
+      "description": "Cost and token usage per coding agent and model. Cost is reported by Claude Code only.",
+      "name": "Agent cost and tokens"
+    },
+    "duration": "6h",
+    "layouts": [
+      {
+        "kind": "Grid",
+        "spec": {
+          "items": [
+            {
+              "content": {
+                "$ref": "#/spec/panels/cost_total"
+              },
+              "height": 4,
+              "width": 6,
+              "x": 0,
+              "y": 0
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/tokens_total"
+              },
+              "height": 4,
+              "width": 6,
+              "x": 6,
+              "y": 0
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/sessions_total"
+              },
+              "height": 4,
+              "width": 6,
+              "x": 12,
+              "y": 0
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/active_time"
+              },
+              "height": 4,
+              "width": 6,
+              "x": 18,
+              "y": 0
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/cost_rate"
+              },
+              "height": 9,
+              "width": 12,
+              "x": 0,
+              "y": 4
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/token_rate"
+              },
+              "height": 9,
+              "width": 12,
+              "x": 12,
+              "y": 4
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/cost_by_model"
+              },
+              "height": 8,
+              "width": 12,
+              "x": 0,
+              "y": 13
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/tokens_by_model"
+              },
+              "height": 8,
+              "width": 12,
+              "x": 12,
+              "y": 13
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/top_sessions"
+              },
+              "height": 8,
+              "width": 24,
+              "x": 0,
+              "y": 21
+            }
+          ]
+        }
+      }
+    ],
+    "panels": {
+      "active_time": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "description": "claude_code.active_time.total: time the user and the CLI were active.",
+            "name": "Active time"
+          },
+          "plugin": {
+            "kind": "StatChart",
+            "spec": {
+              "calculation": "last-number",
+              "format": {
+                "unit": "seconds"
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "sum(increase(claude_code_active_time_seconds_total{agent_name=~\"$agent\"}[$__range] anchored))"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "cost_by_model": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Cost by model"
+          },
+          "plugin": {
+            "kind": "BarChart",
+            "spec": {
+              "calculation": "last-number",
+              "format": {
+                "decimalPlaces": 4,
+                "unit": "usd"
+              },
+              "mode": "value",
+              "sort": "desc"
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "sort_desc(sum by (agent_name, model) (increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored)))",
+                    "seriesNameFormat": "{{agent_name}} {{model}}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "cost_rate": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Cost per interval by model"
+          },
+          "plugin": {
+            "kind": "TimeSeriesChart",
+            "spec": {
+              "legend": {
+                "mode": "table",
+                "position": "right",
+                "values": [
+                  "sum"
+                ]
+              },
+              "visual": {
+                "display": "bar",
+                "stack": "all"
+              },
+              "yAxis": {
+                "format": {
+                  "decimalPlaces": 4,
+                  "unit": "usd"
+                }
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "minStep": "1m",
+                    "query": "sum by (agent_name, model) (increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\"}[$__interval] anchored))",
+                    "seriesNameFormat": "{{agent_name}} {{model}}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "cost_total": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "description": "Cost reported by Claude Code (claude_code.cost.usage) in the selected range. Codex and Gemini CLI do not export cost.",
+            "name": "Cost (USD)"
+          },
+          "plugin": {
+            "kind": "StatChart",
+            "spec": {
+              "calculation": "last-number",
+              "format": {
+                "decimalPlaces": 4,
+                "unit": "usd"
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "sum(increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored))"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "sessions_total": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "description": "Sessions started in the selected range (Claude Code and Gemini CLI).",
+            "name": "Sessions"
+          },
+          "plugin": {
+            "kind": "StatChart",
+            "spec": {
+              "calculation": "last-number",
+              "format": {
+                "shortValues": true,
+                "unit": "decimal"
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "sum(increase({__name__=~\"claude_code_session_count_total|gemini_cli_session_count_total\", agent_name=~\"$agent\"}[$__range] anchored))"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "token_rate": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Tokens per interval by type"
+          },
+          "plugin": {
+            "kind": "TimeSeriesChart",
+            "spec": {
+              "legend": {
+                "mode": "table",
+                "position": "right",
+                "values": [
+                  "sum"
+                ]
+              },
+              "visual": {
+                "display": "bar",
+                "stack": "all"
+              },
+              "yAxis": {
+                "format": {
+                  "shortValues": true,
+                  "unit": "decimal"
+                }
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "minStep": "1m",
+                    "query": "sum by (agent_name, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total\", agent_name=~\"$agent\", model=~\"$model\"}[$__interval] anchored))",
+                    "seriesNameFormat": "{{agent_name}} {{type}}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "tokens_by_model": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Tokens by agent, model and type"
+          },
+          "plugin": {
+            "kind": "Table",
+            "spec": {
+              "columnSettings": [
+                {
+                  "header": "Agent",
+                  "name": "agent_name"
+                },
+                {
+                  "header": "Model",
+                  "name": "model"
+                },
+                {
+                  "header": "Type",
+                  "name": "type"
+                },
+                {
+                  "format": {
+                    "shortValues": true,
+                    "unit": "decimal"
+                  },
+                  "header": "Tokens",
+                  "name": "value"
+                },
+                {
+                  "hide": true,
+                  "name": "timestamp"
+                },
+                {
+                  "hide": true,
+                  "name": "__name__"
+                },
+                {
+                  "hide": true,
+                  "name": "job"
+                },
+                {
+                  "hide": true,
+                  "name": "instance"
+                }
+              ],
+              "defaultColumnHidden": true,
+              "density": "compact",
+              "enableSorting": true
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "sort_desc(sum by (agent_name, model, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total\", agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored)))"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "tokens_total": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "description": "All token types (input, output, cache) in the selected range.",
+            "name": "Tokens"
+          },
+          "plugin": {
+            "kind": "StatChart",
+            "spec": {
+              "calculation": "last-number",
+              "format": {
+                "shortValues": true,
+                "unit": "decimal"
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "sum(increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total\", agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored))"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "top_sessions": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Most expensive sessions"
+          },
+          "plugin": {
+            "kind": "Table",
+            "spec": {
+              "columnSettings": [
+                {
+                  "header": "Session",
+                  "name": "session_id"
+                },
+                {
+                  "header": "Agent",
+                  "name": "agent_name"
+                },
+                {
+                  "header": "Model",
+                  "name": "model"
+                },
+                {
+                  "format": {
+                    "decimalPlaces": 4,
+                    "unit": "usd"
+                  },
+                  "header": "Cost (USD)",
+                  "name": "value"
+                },
+                {
+                  "hide": true,
+                  "name": "timestamp"
+                },
+                {
+                  "hide": true,
+                  "name": "__name__"
+                },
+                {
+                  "hide": true,
+                  "name": "job"
+                },
+                {
+                  "hide": true,
+                  "name": "instance"
+                }
+              ],
+              "defaultColumnHidden": true,
+              "density": "compact",
+              "enableSorting": true
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "topk(10, sum by (agent_name, session_id, model) (increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored)))"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "refreshInterval": "30s",
+    "variables": [
+      {
+        "kind": "ListVariable",
+        "spec": {
+          "allowAllValue": true,
+          "allowMultiple": true,
+          "customAllValue": ".*",
+          "defaultValue": "$__all",
+          "display": {
+            "name": "Agent"
+          },
+          "name": "agent",
+          "plugin": {
+            "kind": "PrometheusLabelValuesVariable",
+            "spec": {
+              "labelName": "agent_name",
+              "matchers": [
+                "{agent_name!=\"\"}"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "kind": "ListVariable",
+        "spec": {
+          "allowAllValue": true,
+          "allowMultiple": true,
+          "customAllValue": ".*",
+          "defaultValue": "$__all",
+          "display": {
+            "name": "Model"
+          },
+          "name": "model",
+          "plugin": {
+            "kind": "PrometheusLabelValuesVariable",
+            "spec": {
+              "labelName": "model",
+              "matchers": [
+                "{agent_name=~\"$agent\", model!=\"\"}"
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

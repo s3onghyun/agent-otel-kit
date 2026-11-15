@@ -1,0 +1,626 @@
+{
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "agent-tool-calls",
+    "project": "agent-otel-kit"
+  },
+  "spec": {
+    "display": {
+      "description": "Tool call volume, success rate and duration, from the tool result events of each agent.",
+      "name": "Agent tool calls"
+    },
+    "duration": "6h",
+    "layouts": [
+      {
+        "kind": "Grid",
+        "spec": {
+          "items": [
+            {
+              "content": {
+                "$ref": "#/spec/panels/calls_total"
+              },
+              "height": 4,
+              "width": 6,
+              "x": 0,
+              "y": 0
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/failed_total"
+              },
+              "height": 4,
+              "width": 6,
+              "x": 6,
+              "y": 0
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/success_rate"
+              },
+              "height": 4,
+              "width": 6,
+              "x": 12,
+              "y": 0
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/p95_total"
+              },
+              "height": 4,
+              "width": 6,
+              "x": 18,
+              "y": 0
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/calls_rate"
+              },
+              "height": 9,
+              "width": 12,
+              "x": 0,
+              "y": 4
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/p95_by_tool"
+              },
+              "height": 9,
+              "width": 12,
+              "x": 12,
+              "y": 4
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/per_tool"
+              },
+              "height": 9,
+              "width": 14,
+              "x": 0,
+              "y": 13
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/decisions"
+              },
+              "height": 9,
+              "width": 10,
+              "x": 14,
+              "y": 13
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/failed_calls"
+              },
+              "height": 9,
+              "width": 24,
+              "x": 0,
+              "y": 22
+            }
+          ]
+        }
+      }
+    ],
+    "panels": {
+      "calls_rate": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Tool calls per interval by tool"
+          },
+          "plugin": {
+            "kind": "TimeSeriesChart",
+            "spec": {
+              "legend": {
+                "mode": "table",
+                "position": "right",
+                "values": [
+                  "sum"
+                ]
+              },
+              "visual": {
+                "display": "bar",
+                "stack": "all"
+              },
+              "yAxis": {
+                "format": {
+                  "shortValues": true,
+                  "unit": "decimal"
+                }
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "minStep": "1m",
+                    "query": "sum by (tool_name) (increase(agent_otel_kit_tool_duration_milliseconds_count{agent_name=~\"$agent\", tool_name=~\"$tool\"}[$__interval] anchored))",
+                    "seriesNameFormat": "{{tool_name}}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "calls_total": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Tool calls"
+          },
+          "plugin": {
+            "kind": "StatChart",
+            "spec": {
+              "calculation": "last-number",
+              "format": {
+                "shortValues": true,
+                "unit": "decimal"
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "sum(increase(agent_otel_kit_tool_duration_milliseconds_count{agent_name=~\"$agent\", tool_name=~\"$tool\"}[$__range] anchored))"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "decisions": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "description": "tool_decision events: who allowed or rejected each tool call (config, user, hook, classifier).",
+            "name": "Permission decisions"
+          },
+          "plugin": {
+            "kind": "Table",
+            "spec": {
+              "columnSettings": [
+                {
+                  "header": "Tool",
+                  "name": "tool_name"
+                },
+                {
+                  "header": "Decision",
+                  "name": "decision"
+                },
+                {
+                  "header": "Source",
+                  "name": "source"
+                },
+                {
+                  "format": {
+                    "shortValues": true,
+                    "unit": "decimal"
+                  },
+                  "header": "Count",
+                  "name": "value"
+                },
+                {
+                  "hide": true,
+                  "name": "timestamp"
+                },
+                {
+                  "hide": true,
+                  "name": "__name__"
+                },
+                {
+                  "hide": true,
+                  "name": "job"
+                },
+                {
+                  "hide": true,
+                  "name": "instance"
+                }
+              ],
+              "defaultColumnHidden": true,
+              "density": "compact",
+              "enableSorting": true
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LokiTimeSeriesQuery",
+                  "spec": {
+                    "query": "sum by (tool_name, decision, source) (count_over_time({service_name=~\".+\", agent_name=~\"$agent\"} | event_name=\"tool_decision\" [$__range]))"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "failed_calls": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "description": "Error text is not collected by default; error_type is.",
+            "name": "Failed tool calls"
+          },
+          "plugin": {
+            "kind": "LogsTable",
+            "spec": {
+              "allowWrap": true,
+              "enableDetails": true,
+              "showTime": true
+            }
+          },
+          "queries": [
+            {
+              "kind": "LogQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LokiLogQuery",
+                  "spec": {
+                    "direction": "backward",
+                    "query": "{service_name=~\".+\", agent_name=~\"$agent\"} | tool_success=\"false\" | line_format \"{{.agent_name}}  {{.tool_name}}  {{.error_type}}  {{.duration_ms}} ms  session={{.session_id}}\""
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "failed_total": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Failed tool calls"
+          },
+          "plugin": {
+            "kind": "StatChart",
+            "spec": {
+              "calculation": "last-number",
+              "format": {
+                "shortValues": true,
+                "unit": "decimal"
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "sum(increase(agent_otel_kit_tool_duration_milliseconds_count{agent_name=~\"$agent\", tool_name=~\"$tool\", tool_success=\"false\"}[$__range] anchored)) or vector(0)"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "p95_by_tool": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "p95 duration by tool"
+          },
+          "plugin": {
+            "kind": "TimeSeriesChart",
+            "spec": {
+              "legend": {
+                "mode": "table",
+                "position": "right",
+                "values": [
+                  "max"
+                ]
+              },
+              "visual": {
+                "areaOpacity": 0.1,
+                "display": "line",
+                "lineWidth": 1.25
+              },
+              "yAxis": {
+                "format": {
+                  "unit": "milliseconds"
+                }
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "minStep": "1m",
+                    "query": "histogram_quantile(0.95, sum by (le, tool_name) (rate(agent_otel_kit_tool_duration_milliseconds_bucket{agent_name=~\"$agent\", tool_name=~\"$tool\"}[$__rate_interval]))) >= 0",
+                    "seriesNameFormat": "{{tool_name}}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "p95_total": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "p95 tool duration"
+          },
+          "plugin": {
+            "kind": "StatChart",
+            "spec": {
+              "calculation": "last-number",
+              "format": {
+                "unit": "milliseconds"
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "histogram_quantile(0.95, sum by (le) (increase(agent_otel_kit_tool_duration_milliseconds_bucket{agent_name=~\"$agent\", tool_name=~\"$tool\"}[$__range] anchored)))"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "per_tool": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Per tool"
+          },
+          "plugin": {
+            "kind": "Table",
+            "spec": {
+              "columnSettings": [
+                {
+                  "header": "Agent",
+                  "name": "agent_name"
+                },
+                {
+                  "header": "Tool",
+                  "name": "tool_name"
+                },
+                {
+                  "format": {
+                    "shortValues": true,
+                    "unit": "decimal"
+                  },
+                  "header": "Calls",
+                  "name": "value #1"
+                },
+                {
+                  "format": {
+                    "shortValues": true,
+                    "unit": "decimal"
+                  },
+                  "header": "Succeeded",
+                  "name": "value #2"
+                },
+                {
+                  "format": {
+                    "unit": "milliseconds"
+                  },
+                  "header": "p50",
+                  "name": "value #3"
+                },
+                {
+                  "format": {
+                    "unit": "milliseconds"
+                  },
+                  "header": "p95",
+                  "name": "value #4"
+                },
+                {
+                  "hide": true,
+                  "name": "timestamp"
+                },
+                {
+                  "hide": true,
+                  "name": "__name__"
+                },
+                {
+                  "hide": true,
+                  "name": "job"
+                },
+                {
+                  "hide": true,
+                  "name": "instance"
+                }
+              ],
+              "defaultColumnHidden": true,
+              "density": "compact",
+              "enableSorting": true,
+              "transforms": [
+                {
+                  "kind": "MergeColumns",
+                  "spec": {
+                    "columns": [
+                      "agent_name #1",
+                      "agent_name #2",
+                      "agent_name #3",
+                      "agent_name #4"
+                    ],
+                    "name": "agent_name"
+                  }
+                },
+                {
+                  "kind": "MergeColumns",
+                  "spec": {
+                    "columns": [
+                      "tool_name #1",
+                      "tool_name #2",
+                      "tool_name #3",
+                      "tool_name #4"
+                    ],
+                    "name": "tool_name"
+                  }
+                },
+                {
+                  "kind": "JoinByColumnValue",
+                  "spec": {
+                    "columns": [
+                      "agent_name",
+                      "tool_name"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "sort_desc(sum by (agent_name, tool_name) (increase(agent_otel_kit_tool_duration_milliseconds_count{agent_name=~\"$agent\", tool_name=~\"$tool\"}[$__range] anchored)))"
+                  }
+                }
+              }
+            },
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "sum by (agent_name, tool_name) (increase(agent_otel_kit_tool_duration_milliseconds_count{agent_name=~\"$agent\", tool_name=~\"$tool\"}[$__range] anchored)) - sum by (agent_name, tool_name) (increase(agent_otel_kit_tool_duration_milliseconds_count{agent_name=~\"$agent\", tool_name=~\"$tool\", tool_success=\"false\"}[$__range] anchored) or (0 * increase(agent_otel_kit_tool_duration_milliseconds_count{agent_name=~\"$agent\", tool_name=~\"$tool\"}[$__range] anchored)))"
+                  }
+                }
+              }
+            },
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "histogram_quantile(0.5, sum by (le, agent_name, tool_name) (increase(agent_otel_kit_tool_duration_milliseconds_bucket{agent_name=~\"$agent\", tool_name=~\"$tool\"}[$__range] anchored)))"
+                  }
+                }
+              }
+            },
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "histogram_quantile(0.95, sum by (le, agent_name, tool_name) (increase(agent_otel_kit_tool_duration_milliseconds_bucket{agent_name=~\"$agent\", tool_name=~\"$tool\"}[$__range] anchored)))"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "success_rate": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Success rate"
+          },
+          "plugin": {
+            "kind": "StatChart",
+            "spec": {
+              "calculation": "last-number",
+              "format": {
+                "decimalPlaces": 1,
+                "unit": "percent-decimal"
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "1 - ((sum(increase(agent_otel_kit_tool_duration_milliseconds_count{agent_name=~\"$agent\", tool_name=~\"$tool\", tool_success=\"false\"}[$__range] anchored)) or vector(0)) / sum(increase(agent_otel_kit_tool_duration_milliseconds_count{agent_name=~\"$agent\", tool_name=~\"$tool\"}[$__range] anchored)))"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "refreshInterval": "30s",
+    "variables": [
+      {
+        "kind": "ListVariable",
+        "spec": {
+          "allowAllValue": true,
+          "allowMultiple": true,
+          "customAllValue": ".*",
+          "defaultValue": "$__all",
+          "display": {
+            "name": "Agent"
+          },
+          "name": "agent",
+          "plugin": {
+            "kind": "PrometheusLabelValuesVariable",
+            "spec": {
+              "labelName": "agent_name",
+              "matchers": [
+                "{agent_name!=\"\"}"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "kind": "ListVariable",
+        "spec": {
+          "allowAllValue": true,
+          "allowMultiple": true,
+          "customAllValue": ".*",
+          "defaultValue": "$__all",
+          "display": {
+            "name": "Tool"
+          },
+          "name": "tool",
+          "plugin": {
+            "kind": "PrometheusLabelValuesVariable",
+            "spec": {
+              "labelName": "tool_name",
+              "matchers": [
+                "agent_otel_kit_tool_duration_milliseconds_count{agent_name=~\"$agent\"}"
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

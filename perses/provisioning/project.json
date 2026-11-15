@@ -1,0 +1,11 @@
+{
+  "kind": "Project",
+  "metadata": {
+    "name": "agent-otel-kit"
+  },
+  "spec": {
+    "display": {
+      "name": "Agent OTel Kit"
+    }
+  }
+}

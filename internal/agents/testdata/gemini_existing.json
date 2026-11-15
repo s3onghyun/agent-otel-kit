@@ -1,0 +1,9 @@
+{
+  "theme": "GitHub",
+  "telemetry": {
+    "enabled": false,
+    "outfile": ".gemini/telemetry.log",
+    "useCollector": false
+  },
+  "general": {"vimMode": true}
+}

@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Read"
+    ]
+  },
+  "env": {
+    "MY_VAR": "keep me",
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "OTEL_METRICS_EXPORTER": "otlp",
+    "OTEL_LOGS_EXPORTER": "otlp",
+    "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector.lan:4318",
+    "OTEL_METRIC_EXPORT_INTERVAL": "10000"
+  },
+  "model": "sonnet",
+  "statusLine": {
+    "type": "command",
+    "command": "echo <&> hi"
+  }
+}

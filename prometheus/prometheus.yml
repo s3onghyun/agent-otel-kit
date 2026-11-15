@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 10s
+  evaluation_interval: 30s
+
+scrape_configs:
+  # Agent metrics, already converted to cumulative by the collector.
+  # Protobuf scraping plus --enable-feature=created-timestamp-zero-ingestion
+  # (see compose.yaml) lets Prometheus insert a zero sample when a new series
+  # starts, so increase() counts the first export of a short session.
+  - job_name: agents
+    scrape_protocols: [PrometheusProto, OpenMetricsText1.0.0, PrometheusText0.0.4]
+    honor_labels: true
+    static_configs:
+      - targets: ["otel-collector:8889"]
+
+  # The collector's own metrics (accepted/refused items per receiver).
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8888"]

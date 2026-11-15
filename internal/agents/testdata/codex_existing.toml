@@ -1,0 +1,21 @@
+# my codex config
+model = "gpt-5"
+approval_policy = "on-request"
+
+[otel]
+environment = "staging"
+exporter = { otlp-grpc = {
+  endpoint = "https://otel.example.com:4317",
+  headers = { "x-otlp-meta" = "abc123" }
+}}
+log_sse_deltas = false
+
+[otel.span_attributes]
+"team" = "platform"
+
+[profiles.fast]
+model = "gpt-5-mini"
+instructions = """
+[otel]
+not a table
+"""

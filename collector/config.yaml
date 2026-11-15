@@ -1,0 +1,179 @@
+# OpenTelemetry Collector configuration for agent-otel-kit.
+#
+# Signals from Claude Code, Codex and Gemini CLI arrive over OTLP and leave as:
+#   metrics -> Prometheus (scraped from the prometheus exporter on :8889)
+#   logs    -> Loki (native OTLP endpoint)
+#   traces  -> Tempo (OTLP gRPC)
+#
+# Switches (environment variables of the collector container, see compose.yaml):
+#   AGENT_OTEL_KIT_CAPTURE_CONTENT=true  keep prompt, response and tool content
+#                                        attributes (deleted by default).
+#   AGENT_OTEL_KIT_KEEP_EMAIL=true       keep user.email (deleted by default).
+#
+# Debug output is off. To print every item to the collector log, start the
+# stack with the debug overlay: make up-debug (see collector/debug.yaml).
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+connectors:
+  # Builds one tool-call latency histogram from the per-call log events every
+  # agent emits, so tool dashboards work the same for all three agents.
+  # The connector emits delta temporality; delta_to_cumulative below fixes that.
+  signal_to_metrics:
+    logs:
+      - name: agent_otel_kit.tool.duration
+        description: Duration of tool calls made by coding agents, derived from tool result log events.
+        unit: ms
+        conditions:
+          - log.attributes["tool.name"] != nil and log.attributes["duration_ms"] != nil
+        include_resource_attributes:
+          - key: agent.name
+          - key: service.name
+        attributes:
+          - key: tool.name
+          - key: tool.success
+            default_value: unknown
+        histogram:
+          buckets: [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000, 60000, 120000, 300000]
+          value: Double(log.attributes["duration_ms"])
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 20
+
+  # agent.name is the one label every dashboard groups by. It is derived from
+  # service.name, which each agent sets itself:
+  #   claude-code -> claude-code, codex_* / codex-* -> codex, gemini-cli -> gemini-cli
+  # A value set explicitly through OTEL_RESOURCE_ATTRIBUTES=agent.name=... wins.
+  transform/agent:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements: &agent_resource
+          - set(resource.attributes["agent.name"], "claude-code") where resource.attributes["agent.name"] == nil and resource.attributes["service.name"] == "claude-code"
+          - set(resource.attributes["agent.name"], "codex") where resource.attributes["agent.name"] == nil and IsMatch(resource.attributes["service.name"], "^codex")
+          - set(resource.attributes["agent.name"], "gemini-cli") where resource.attributes["agent.name"] == nil and resource.attributes["service.name"] == "gemini-cli"
+          - set(resource.attributes["agent.name"], resource.attributes["service.name"]) where resource.attributes["agent.name"] == nil
+      - context: datapoint
+        statements:
+          # Claude Code puts the *subagent* name into a datapoint attribute
+          # called agent.name. Keep it as subagent.name so it does not clash.
+          - set(datapoint.attributes["subagent.name"], datapoint.attributes["agent.name"]) where datapoint.attributes["agent.name"] != nil and datapoint.attributes["agent.name"] != resource.attributes["agent.name"]
+          - set(datapoint.attributes["agent.name"], resource.attributes["agent.name"])
+          # signal_to_metrics emits delta points without a start time. Give
+          # them one just before the point, so the cumulative series gets a
+          # start (created) time and Prometheus can insert its zero sample;
+          # otherwise the first increment of every new series is lost.
+          - set(datapoint.start_time_unix_nano, datapoint.time_unix_nano - 1000000) where datapoint.start_time_unix_nano == 0
+    log_statements:
+      - context: resource
+        statements: *agent_resource
+      - context: log
+        statements:
+          # agent.name stays a resource attribute on logs (Loki indexes it as
+          # the agent_name label); a record-level copy would shadow it.
+          - set(log.attributes["subagent.name"], log.attributes["agent.name"]) where log.attributes["agent.name"] != nil and log.attributes["agent.name"] != resource.attributes["agent.name"]
+          - delete_key(log.attributes, "agent.name")
+          # Normalized tool fields: Claude Code and Codex use tool_name,
+          # Gemini CLI uses function_name.
+          - set(log.attributes["tool.name"], log.attributes["tool_name"]) where log.attributes["tool_name"] != nil and IsMatch(log.attributes["event.name"], "^(tool_result|codex\\.tool_result)$")
+          - set(log.attributes["tool.name"], log.attributes["function_name"]) where log.attributes["function_name"] != nil and log.attributes["event.name"] == "gemini_cli.tool_call"
+          - set(log.attributes["tool.success"], log.attributes["success"]) where log.attributes["tool.name"] != nil and log.attributes["success"] != nil
+    trace_statements:
+      - context: resource
+        statements: *agent_resource
+
+  # Content is never collected unless AGENT_OTEL_KIT_CAPTURE_CONTENT=true.
+  # The agents already redact most of these by default; this is the second
+  # line of defence for when someone turns on OTEL_LOG_USER_PROMPTS,
+  # OTEL_LOG_TOOL_DETAILS, Gemini's logPrompts (default true) and so on.
+  transform/redact:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - delete_key(resource.attributes, "user.email") where "${env:AGENT_OTEL_KIT_KEEP_EMAIL:-false}" != "true"
+      - context: datapoint
+        statements:
+          - delete_key(datapoint.attributes, "user.email") where "${env:AGENT_OTEL_KIT_KEEP_EMAIL:-false}" != "true"
+    log_statements:
+      - context: resource
+        statements:
+          - delete_key(resource.attributes, "user.email") where "${env:AGENT_OTEL_KIT_KEEP_EMAIL:-false}" != "true"
+      - context: log
+        statements:
+          - delete_key(log.attributes, "user.email") where "${env:AGENT_OTEL_KIT_KEEP_EMAIL:-false}" != "true"
+          - delete_matching_keys(log.attributes, "^(prompt|prompt_text|response|response_text|request_text|system_prompt|tool_parameters|tool_input|tool_output|function_args|arguments|output|error|body|body_ref|file_path|full_command|bash_command|rationale|reasoning|gen_ai\\.input\\.messages|gen_ai\\.output\\.messages|gen_ai\\.system_instructions)$") where "${env:AGENT_OTEL_KIT_CAPTURE_CONTENT:-false}" != "true"
+    trace_statements:
+      - context: resource
+        statements:
+          - delete_key(resource.attributes, "user.email") where "${env:AGENT_OTEL_KIT_KEEP_EMAIL:-false}" != "true"
+      - context: span
+        statements:
+          - delete_key(span.attributes, "user.email") where "${env:AGENT_OTEL_KIT_KEEP_EMAIL:-false}" != "true"
+          - delete_matching_keys(span.attributes, "^(user_prompt|prompt|response\\.model_output|new_context|system_reminders|system_prompt_preview|user_system_prompt|tool_input|file_path|full_command|error|gen_ai\\.input\\.messages|gen_ai\\.output\\.messages|gen_ai\\.system_instructions|gen_ai\\.tool\\.call\\.arguments|gen_ai\\.tool\\.call\\.result)$") where "${env:AGENT_OTEL_KIT_CAPTURE_CONTENT:-false}" != "true"
+      - context: spanevent
+        statements:
+          - delete_matching_keys(spanevent.attributes, "^(content|output|diff|file_path|bash_command|prompt|gen_ai\\.input\\.messages|gen_ai\\.output\\.messages)$") where "${env:AGENT_OTEL_KIT_CAPTURE_CONTENT:-false}" != "true"
+
+  # All three agents export metrics with delta temporality by default.
+  # Prometheus only understands cumulative counters, so convert here.
+  delta_to_cumulative:
+    max_stale: 1h
+
+  batch:
+    send_batch_size: 1024
+    timeout: 2s
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    # Keep series around for a while after an agent goes quiet so short
+    # sessions are still scraped.
+    metric_expiration: 1h
+    resource_to_telemetry_conversion:
+      enabled: false
+
+  otlp_http/loki:
+    endpoint: http://loki:3100/otlp
+
+  otlp_grpc/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+service:
+  extensions: [health_check]
+  telemetry:
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
+  pipelines:
+    metrics:
+      receivers: [otlp, signal_to_metrics]
+      processors: [memory_limiter, transform/agent, transform/redact, delta_to_cumulative, batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/agent, transform/redact, batch]
+      exporters: [otlp_http/loki, signal_to_metrics]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/agent, transform/redact, batch]
+      exporters: [otlp_grpc/tempo]

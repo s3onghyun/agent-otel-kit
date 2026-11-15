@@ -1,0 +1,47 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: |
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then echo "$out"; exit 1; fi
+      - run: go vet ./...
+      - run: go test ./...
+      - name: dashboards are generated from tools/gendashboards
+        run: |
+          go run ./tools/gendashboards
+          git diff --exit-code -- grafana/dashboards perses/provisioning/dashboards
+
+  config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker compose config
+        run: |
+          docker compose config -q
+          docker compose --profile perses config -q
+          docker compose -f compose.yaml -f compose.debug.yaml config -q
+      - name: otelcol validate
+        run: |
+          image=$(sed -n 's/^OTELCOL_IMAGE := //p' Makefile)
+          docker run --rm -v "$PWD/collector:/c:ro" "$image" validate --config=/c/config.yaml
+          docker run --rm -v "$PWD/collector:/c:ro" "$image" validate --config=/c/config.yaml --config=/c/debug.yaml
+      - name: collector image matches compose.yaml
+        run: |
+          image=$(sed -n 's/^OTELCOL_IMAGE := //p' Makefile)
+          grep -q "image: $image" compose.yaml

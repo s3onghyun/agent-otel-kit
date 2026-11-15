@@ -1,0 +1,423 @@
+{
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "agent-sessions",
+    "project": "agent-otel-kit"
+  },
+  "spec": {
+    "display": {
+      "description": "Sessions, interaction traces and the event stream of each session.",
+      "name": "Agent sessions and traces"
+    },
+    "duration": "6h",
+    "layouts": [
+      {
+        "kind": "Grid",
+        "spec": {
+          "items": [
+            {
+              "content": {
+                "$ref": "#/spec/panels/sessions"
+              },
+              "height": 10,
+              "width": 10,
+              "x": 0,
+              "y": 0
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/traces"
+              },
+              "height": 10,
+              "width": 14,
+              "x": 10,
+              "y": 0
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/trace_view"
+              },
+              "height": 16,
+              "width": 24,
+              "x": 0,
+              "y": 10
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/llm_latency"
+              },
+              "height": 8,
+              "width": 12,
+              "x": 0,
+              "y": 26
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/event_rate"
+              },
+              "height": 8,
+              "width": 12,
+              "x": 12,
+              "y": 26
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/session_events"
+              },
+              "height": 10,
+              "width": 24,
+              "x": 0,
+              "y": 34
+            }
+          ]
+        }
+      }
+    ],
+    "panels": {
+      "event_rate": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Events per interval by type"
+          },
+          "plugin": {
+            "kind": "TimeSeriesChart",
+            "spec": {
+              "legend": {
+                "mode": "table",
+                "position": "right",
+                "values": [
+                  "sum"
+                ]
+              },
+              "visual": {
+                "display": "bar",
+                "stack": "all"
+              },
+              "yAxis": {
+                "format": {
+                  "shortValues": true,
+                  "unit": "decimal"
+                }
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LokiTimeSeriesQuery",
+                  "spec": {
+                    "query": "sum by (event_name) (count_over_time({service_name=~\".+\", agent_name=~\"$agent\"} [$__interval]))"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "llm_latency": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Model request duration p95"
+          },
+          "plugin": {
+            "kind": "TimeSeriesChart",
+            "spec": {
+              "legend": {
+                "mode": "table",
+                "position": "right",
+                "values": [
+                  "max"
+                ]
+              },
+              "visual": {
+                "areaOpacity": 0.1,
+                "display": "line",
+                "lineWidth": 1.25
+              },
+              "yAxis": {
+                "format": {
+                  "unit": "milliseconds"
+                }
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LokiTimeSeriesQuery",
+                  "spec": {
+                    "query": "quantile_over_time(0.95, {service_name=~\".+\", agent_name=~\"$agent\"} | event_name=~\"api_request|codex.api_request|gemini_cli.api_response\" | unwrap duration_ms [$__interval]) by (model)"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "session_events": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "description": "Prompt, response and tool content are not collected by default.",
+            "name": "Session events"
+          },
+          "plugin": {
+            "kind": "LogsTable",
+            "spec": {
+              "allowWrap": true,
+              "enableDetails": true,
+              "showTime": true
+            }
+          },
+          "queries": [
+            {
+              "kind": "LogQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LokiLogQuery",
+                  "spec": {
+                    "direction": "backward",
+                    "query": "{service_name=~\".+\", agent_name=~\"$agent\"} | session_id=~\"$session\" | line_format \"{{.event_name}}{{if .tool_name}}  tool={{.tool_name}} success={{.success}} {{.duration_ms}}ms{{end}}{{if .model}}  model={{.model}}{{end}}{{if .cost_usd}}  cost_usd={{.cost_usd}}{{end}}{{if .input_tokens}}  tokens in/out={{.input_tokens}}/{{.output_tokens}}{{end}}\""
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "sessions": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "description": "Lifetime cost and tokens of each session seen in the range.",
+            "name": "Sessions"
+          },
+          "plugin": {
+            "kind": "Table",
+            "spec": {
+              "columnSettings": [
+                {
+                  "header": "Session",
+                  "name": "session_id"
+                },
+                {
+                  "header": "Agent",
+                  "name": "agent_name"
+                },
+                {
+                  "format": {
+                    "decimalPlaces": 4,
+                    "unit": "usd"
+                  },
+                  "header": "Cost (USD)",
+                  "name": "value #1"
+                },
+                {
+                  "format": {
+                    "shortValues": true,
+                    "unit": "decimal"
+                  },
+                  "header": "Tokens",
+                  "name": "value #2"
+                },
+                {
+                  "hide": true,
+                  "name": "timestamp"
+                },
+                {
+                  "hide": true,
+                  "name": "__name__"
+                },
+                {
+                  "hide": true,
+                  "name": "job"
+                },
+                {
+                  "hide": true,
+                  "name": "instance"
+                }
+              ],
+              "defaultColumnHidden": true,
+              "density": "compact",
+              "enableSorting": true,
+              "transforms": [
+                {
+                  "kind": "MergeColumns",
+                  "spec": {
+                    "columns": [
+                      "agent_name #1",
+                      "agent_name #2"
+                    ],
+                    "name": "agent_name"
+                  }
+                },
+                {
+                  "kind": "MergeColumns",
+                  "spec": {
+                    "columns": [
+                      "session_id #1",
+                      "session_id #2"
+                    ],
+                    "name": "session_id"
+                  }
+                },
+                {
+                  "kind": "JoinByColumnValue",
+                  "spec": {
+                    "columns": [
+                      "agent_name",
+                      "session_id"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "sort_desc(sum by (agent_name, session_id) (max_over_time(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", session_id=~\"$session\"}[$__range])))"
+                  }
+                }
+              }
+            },
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "sum by (agent_name, session_id) (max_over_time({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total\", agent_name=~\"$agent\", session_id=~\"$session\"}[$__range]))"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "trace_view": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "description": "Paste a trace ID into the Trace ID box above.",
+            "name": "Trace"
+          },
+          "plugin": {
+            "kind": "TracingGanttChart",
+            "spec": {}
+          },
+          "queries": [
+            {
+              "kind": "TraceQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "TempoTraceQuery",
+                  "spec": {
+                    "limit": 20,
+                    "query": "$trace"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "traces": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "description": "One trace per prompt. Claude Code needs CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1 for traces. Click a trace ID to open it.",
+            "name": "Interactions (traces)"
+          },
+          "plugin": {
+            "kind": "TraceTable",
+            "spec": {}
+          },
+          "queries": [
+            {
+              "kind": "TraceQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "TempoTraceQuery",
+                  "spec": {
+                    "limit": 20,
+                    "query": "{resource.agent.name=~\"$agent\"}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "refreshInterval": "30s",
+    "variables": [
+      {
+        "kind": "ListVariable",
+        "spec": {
+          "allowAllValue": true,
+          "allowMultiple": true,
+          "customAllValue": ".*",
+          "defaultValue": "$__all",
+          "display": {
+            "name": "Agent"
+          },
+          "name": "agent",
+          "plugin": {
+            "kind": "PrometheusLabelValuesVariable",
+            "spec": {
+              "labelName": "agent_name",
+              "matchers": [
+                "{agent_name!=\"\"}"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "kind": "ListVariable",
+        "spec": {
+          "allowAllValue": true,
+          "allowMultiple": true,
+          "customAllValue": ".*",
+          "defaultValue": "$__all",
+          "display": {
+            "name": "Session"
+          },
+          "name": "session",
+          "plugin": {
+            "kind": "PrometheusLabelValuesVariable",
+            "spec": {
+              "labelName": "session_id",
+              "matchers": [
+                "{__name__=~\"claude_code_session_count_total|gemini_cli_session_count_total\", agent_name=~\"$agent\"}"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "kind": "TextVariable",
+        "spec": {
+          "display": {
+            "name": "Trace ID"
+          },
+          "name": "trace",
+          "value": ""
+        }
+      }
+    ]
+  }
+}
