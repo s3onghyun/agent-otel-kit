@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -68,15 +69,17 @@ func assertSame(t *testing.T, path string, want []byte, wantMode fs.FileMode) {
 
 func TestSetupUndoRestoresExistingFilesByteForByte(t *testing.T) {
 	cases := map[string]struct {
-		rel     string
-		fixture string
+		agent, rel, fixture, endpoint string
 	}{
-		"claude": {".claude/settings.json", "claude_existing.json"},
-		"codex":  {".codex/config.toml", "codex_existing.toml"},
-		"gemini": {".gemini/settings.json", "gemini_existing.json"},
+		"claude":    {"claude", ".claude/settings.json", "claude_existing.json", "localhost:4318"},
+		"codex":     {"codex", ".codex/config.toml", "codex_existing.toml", "localhost:4318"},
+		"gemini":    {"gemini", ".gemini/settings.json", "gemini_existing.json", "localhost:4318"},
+		"qwen":      {"qwen", ".qwen/settings.json", "qwen_existing.json", "localhost:4317"},
+		"qwen crlf": {"qwen", ".qwen/settings.json", "qwen_crlf.json", "localhost:4317"},
 	}
-	for name, c := range cases {
-		t.Run(name, func(t *testing.T) {
+	for tc, c := range cases {
+		name := c.agent
+		t.Run(tc, func(t *testing.T) {
 			env := testEnv(t)
 			path := filepath.Join(env.Home, c.rel)
 			orig := fixture(t, c.fixture)
@@ -90,7 +93,7 @@ func TestSetupUndoRestoresExistingFilesByteForByte(t *testing.T) {
 			if bytes.Equal(changed, orig) {
 				t.Fatal("setup did not change the file")
 			}
-			if !strings.Contains(string(changed), "localhost:4318") {
+			if !strings.Contains(string(changed), c.endpoint) {
 				t.Fatalf("endpoint missing:\n%s", changed)
 			}
 			fi, _ := os.Stat(path)
@@ -121,7 +124,7 @@ func TestSetupUndoRemovesCreatedFileAndDirs(t *testing.T) {
 	if code, _, e := runCLI(t, env, "setup", "all"); code != 0 {
 		t.Fatalf("setup all: %s", e)
 	}
-	for _, rel := range []string{".claude/settings.json", ".codex/config.toml", ".gemini/settings.json"} {
+	for _, rel := range []string{".claude/settings.json", ".codex/config.toml", ".gemini/settings.json", ".qwen/settings.json"} {
 		fi, err := os.Stat(filepath.Join(env.Home, rel))
 		if err != nil {
 			t.Fatalf("%s not created: %v", rel, err)
@@ -193,6 +196,8 @@ func TestSetupRejectsBadInput(t *testing.T) {
 		{"setup", "cursor"},
 		{"setup", "claude", "codex"},
 		{"setup", "claude", "--endpoint", "localhost:4318"},
+		{"setup", "qwen", "--protocol", "grpc+http"},
+		{"setup", "qwen", "--protocol", "grpc", "--endpoint", "https://otel.lan/otlp"},
 		{"bogus"},
 	} {
 		if code, _, _ := runCLI(t, env, args...); code == 0 {
@@ -256,5 +261,80 @@ func TestVersionString(t *testing.T) {
 	code, out, _ := runCLI(t, testEnv(t), "version")
 	if code != 0 || !strings.HasPrefix(out, "agent-otel-kit ") {
 		t.Errorf("version: code %d, output %q", code, out)
+	}
+}
+
+func TestSetupQwenProtocol(t *testing.T) {
+	env := testEnv(t)
+	path := filepath.Join(env.Home, ".qwen", "settings.json")
+	if code, _, e := runCLI(t, env, "setup", "qwen", "--protocol", "http", "--endpoint", "https://otel.lan/otlp"); code != 0 {
+		t.Fatalf("setup qwen --protocol http: %s", e)
+	}
+	got, _ := os.ReadFile(path)
+	for _, want := range []string{`"otlpProtocol": "http"`, `"otlpEndpoint": "https://otel.lan/otlp"`} {
+		if !strings.Contains(string(got), want) {
+			t.Errorf("missing %s in:\n%s", want, got)
+		}
+	}
+	if code, _, e := runCLI(t, env, "setup", "qwen"); code != 0 {
+		t.Fatalf("setup qwen: %s", e)
+	}
+	got, _ = os.ReadFile(path)
+	for _, want := range []string{`"otlpProtocol": "grpc"`, `"otlpEndpoint": "http://localhost:4317"`} {
+		if !strings.Contains(string(got), want) {
+			t.Errorf("missing %s in:\n%s", want, got)
+		}
+	}
+	if code, _, e := runCLI(t, env, "setup", "--undo", "qwen"); code != 0 {
+		t.Fatalf("undo: %s", e)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("undo left %s: %v", path, err)
+	}
+}
+
+func TestSetupAllRemoteEndpoint(t *testing.T) {
+	env := testEnv(t)
+	code, out, e := runCLI(t, env, "setup", "all", "--endpoint", "https://otel.lan/otlp")
+	if code != 0 {
+		t.Fatalf("setup all: %d %s", code, e)
+	}
+	for _, name := range []string{"claude", "codex", "gemini", "qwen"} {
+		if !strings.Contains(out, name+": wrote ") {
+			t.Errorf("%s not configured:\n%s", name, out)
+		}
+	}
+	if !strings.Contains(e, "qwen: using OTLP/HTTP for https://otel.lan/otlp") {
+		t.Errorf("missing qwen notice: %q", e)
+	}
+	var settings struct {
+		Telemetry struct{ OtlpEndpoint, OtlpProtocol string }
+	}
+	raw, _ := os.ReadFile(filepath.Join(env.Home, ".qwen", "settings.json"))
+	if err := json.Unmarshal(raw, &settings); err != nil {
+		t.Fatal(err)
+	}
+	if settings.Telemetry.OtlpProtocol != "http" || settings.Telemetry.OtlpEndpoint != "https://otel.lan/otlp" {
+		t.Errorf("qwen telemetry = %+v", settings.Telemetry)
+	}
+}
+
+func TestSetupQwenExplicitGRPCRemoteEndpoint(t *testing.T) {
+	env := testEnv(t)
+	code, _, e := runCLI(t, env, "setup", "qwen", "--protocol", "grpc", "--endpoint", "https://otel.lan/otlp")
+	if code == 0 || !strings.Contains(e, "--protocol http") {
+		t.Fatalf("setup qwen --protocol grpc: %d %q", code, e)
+	}
+	if _, err := os.Stat(filepath.Join(env.Home, ".qwen", "settings.json")); !os.IsNotExist(err) {
+		t.Errorf("settings.json written: %v", err)
+	}
+}
+
+func TestSetupQwenTwiceReportsWrittenEndpoint(t *testing.T) {
+	env := testEnv(t)
+	runCLI(t, env, "setup", "qwen")
+	code, out, _ := runCLI(t, env, "setup", "qwen")
+	if code != 0 || !strings.Contains(out, "already points at http://localhost:4317\n") {
+		t.Fatalf("second setup qwen: %d %s", code, out)
 	}
 }

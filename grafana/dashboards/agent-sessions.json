@@ -23,7 +23,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Lifetime cost and tokens of each session seen in the range. Estimated cost (third-party endpoint, Claude Code default-rate guess) has its own column.",
+      "description": "Lifetime cost and tokens of each session seen in the range. Estimated cost (third-party endpoint, Claude Code default-rate guess) has its own column. Qwen Code sessions are listed only when it adds session.id to metrics (telemetry.metrics.includeSessionId, see README).",
       "fieldConfig": {
         "defaults": {},
         "overrides": [
@@ -114,7 +114,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (agent_name, session_id) (max_over_time({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total\", agent_name=~\"$agent\", session_id=~\"$session\", type!~\"total|cached_input|cache_write_input|reasoning_output|cache\"}[$__range]))",
+          "expr": "sum by (agent_name, session_id) (max_over_time({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total\", agent_name=~\"$agent\", session_id=~\"$session\", type!~\"total|cached_input|cache_write_input|reasoning_output|cache\"}[$__range]) or max_over_time(qwen_code_token_usage_total{agent_name=~\"$agent\", session_id=~\"$session\", session_id!=\"\", type!~\"cache|thought\"}[$__range]))",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -175,7 +175,7 @@
         "type": "tempo",
         "uid": "tempo"
       },
-      "description": "Claude Code and Codex: one trace per prompt (Claude Code needs CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1). Gemini CLI: one trace per model call and per tool batch. Click a trace ID to open it.",
+      "description": "Claude Code, Codex and Qwen Code: one trace per prompt (Claude Code needs CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1). Gemini CLI: one trace per model call and per tool batch. Click a trace ID to open it.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -198,7 +198,7 @@
             "uid": "tempo"
           },
           "limit": 20,
-          "query": "{resource.agent.name=~\"$agent\" && trace:rootName=~\"claude_code.interaction|turn/start|llm_call|schedule_tool_calls\"}",
+          "query": "{resource.agent.name=~\"$agent\" && trace:rootName=~\"claude_code.interaction|turn/start|llm_call|schedule_tool_calls|qwen-code.interaction\"}",
           "queryType": "traceql",
           "refId": "A",
           "tableType": "traces"
@@ -287,7 +287,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "quantile_over_time(0.95, {service_name=~\".+\", agent_name=~\"$agent\"} | event_name=~\"api_request|gemini_cli.api_response\" or (event_name=\"codex.api_request\" and endpoint=~\".*/responses\") | unwrap duration_ms [$__auto]) by (model)",
+          "expr": "quantile_over_time(0.95, {service_name=~\".+\", agent_name=~\"$agent\"} | event_name=~\"api_request|gemini_cli.api_response|qwen-code.api_response\" or (event_name=\"codex.api_request\" and endpoint=~\".*/responses\") | unwrap duration_ms [$__auto]) by (model)",
           "legendFormat": "{{model}}",
           "queryType": "range",
           "refId": "A"
@@ -445,14 +445,14 @@
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "definition": "label_values({__name__=~\"claude_code_session_count_total|gemini_cli_session_count_total\", agent_name=~\"$agent\"}, session_id)",
+        "definition": "label_values({__name__=~\"claude_code_session_count_total|gemini_cli_session_count_total|qwen_code_session_count_total\", agent_name=~\"$agent\"}, session_id)",
         "includeAll": true,
         "label": "Session",
         "multi": true,
         "name": "session",
         "query": {
           "qryType": 1,
-          "query": "label_values({__name__=~\"claude_code_session_count_total|gemini_cli_session_count_total\", agent_name=~\"$agent\"}, session_id)",
+          "query": "label_values({__name__=~\"claude_code_session_count_total|gemini_cli_session_count_total|qwen_code_session_count_total\", agent_name=~\"$agent\"}, session_id)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,

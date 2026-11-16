@@ -109,11 +109,15 @@ const (
 	// (codex.turn.token_usage, whose _sum is a counter) and counts cached
 	// input inside input and reasoning inside output, plus a total. Gemini
 	// CLI counts cache inside input; its thought and tool tokens are extra.
+	// Qwen Code counts cache inside input and, on OpenAI-compatible
+	// providers, thought (reasoning) inside output, so its exact total is
+	// input + output and it needs its own selector (qwenTokenSel).
 	tokenOverlap  = `type!~"total|cached_input|cache_write_input|reasoning_output|cache"`
-	tokenAllSel   = `{__name__=~"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum", agent_name=~"$agent", model=~"$model"}`
+	tokenAllSel   = `{__name__=~"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum|qwen_code_token_usage_total", agent_name=~"$agent", model=~"$model"}`
 	tokenSel      = `{__name__=~"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum", agent_name=~"$agent", model=~"$model", ` + tokenOverlap + `}`
-	tokenTypeDesc = "Codex cached_input, cache_write_input, reasoning_output and total and Gemini CLI cache overlap with input or output and are left out of the Tokens total."
-	sessionSel    = `{__name__=~"claude_code_session_count_total|gemini_cli_session_count_total|codex_thread_started_total", agent_name=~"$agent"}`
+	qwenTokenSel  = `qwen_code_token_usage_total{agent_name=~"$agent", model=~"$model", type!~"cache|thought"}`
+	tokenTypeDesc = "Codex cached_input, cache_write_input, reasoning_output and total, Gemini CLI cache and Qwen Code cache and thought overlap with input or output and are left out of the Tokens total."
+	sessionSel    = `{__name__=~"claude_code_session_count_total|gemini_cli_session_count_total|codex_thread_started_total|qwen_code_session_count_total", agent_name=~"$agent"}`
 	toolCount     = `agent_otel_kit_tool_duration_milliseconds_count{agent_name=~"$agent", tool_name=~"$tool"}`
 	toolBucket    = `agent_otel_kit_tool_duration_milliseconds_bucket{agent_name=~"$agent", tool_name=~"$tool"}`
 	toolFailed    = `agent_otel_kit_tool_duration_milliseconds_count{agent_name=~"$agent", tool_name=~"$tool", tool_success="false"}`
@@ -121,7 +125,7 @@ const (
 
 // traceRoots are the root spans of the traces worth listing. Codex also
 // sends many short internal traces (auth, fs.read_file, ...).
-const traceRoots = `claude_code.interaction|turn/start|llm_call|schedule_tool_calls`
+const traceRoots = `claude_code.interaction|turn/start|llm_call|schedule_tool_calls|qwen-code.interaction`
 
 var agentVar = variable{name: "agent", label: "Agent", labelName: "agent_name", matcher: `{agent_name!=""}`}
 
@@ -143,10 +147,10 @@ func dashboards() []dashboard {
 			{id: "cost_estimated_total", title: "Estimated cost (USD)", desc: costBasisDesc,
 				kind: stat, unit: "currencyUSD", decimals: 4, x: 5, y: 0, w: 5, h: 4,
 				queries: []query{{ds: prom, expr: "sum(" + rangeTotal(costEstimatedSel) + ") or vector(0)", instant: true}}},
-			{id: "tokens_total", title: "Tokens", desc: "All tokens in the selected range. Cached input that Codex and Gemini CLI count inside input is not added again.",
+			{id: "tokens_total", title: "Tokens", desc: "All tokens in the selected range. Cached input that Codex, Gemini CLI and Qwen Code count inside input, and the reasoning Qwen Code counts inside output, are not added again.",
 				kind: stat, unit: "short", x: 10, y: 0, w: 5, h: 4,
-				queries: []query{{ds: prom, expr: "sum(" + rangeTotal(tokenSel) + ")", instant: true}}},
-			{id: "sessions_total", title: "Sessions", desc: "Sessions started in the selected range (Claude Code and Gemini CLI sessions, Codex threads).",
+				queries: []query{{ds: prom, expr: "sum(" + rangeTotal(tokenSel) + " or " + rangeTotal(qwenTokenSel) + ")", instant: true}}},
+			{id: "sessions_total", title: "Sessions", desc: "Sessions started in the selected range (Claude Code, Gemini CLI and Qwen Code sessions, Codex threads).",
 				kind: stat, unit: "short", x: 15, y: 0, w: 5, h: 4,
 				queries: []query{{ds: prom, expr: "sum(" + rangeTotal(sessionSel) + ")", instant: true}}},
 			{id: "active_time", title: "Active time", desc: "claude_code.active_time.total: time the user and the CLI were active.",
@@ -204,9 +208,9 @@ func dashboards() []dashboard {
 				joinOn: []string{"agent_name", "tool_name"},
 				columns: []column{{"agent_name", "Agent", ""}, {"tool_name", "Tool", ""},
 					{"value #1", "Calls", "short"}, {"value #2", "Succeeded", "short"}, {"value #3", "p50", "ms"}, {"value #4", "p95", "ms"}}},
-			{id: "decisions", title: "Permission decisions", desc: "Who allowed or rejected each tool call: Claude Code and Codex tool_decision events (with source), Gemini CLI tool_call events.",
+			{id: "decisions", title: "Permission decisions", desc: "Who allowed or rejected each tool call: Claude Code and Codex tool_decision events (with source), Gemini CLI and Qwen Code tool_call events.",
 				kind: table, x: 14, y: 13, w: 10, h: 9,
-				queries: []query{{ds: loki, expr: `sum by (tool_name, decision, source) (count_over_time({service_name=~".+", agent_name=~"$agent"} | event_name=~"tool_decision|codex.tool_decision|gemini_cli.tool_call" [$__range]))`, instant: true}},
+				queries: []query{{ds: loki, expr: `sum by (tool_name, decision, source) (count_over_time({service_name=~".+", agent_name=~"$agent"} | event_name=~"tool_decision|codex.tool_decision|gemini_cli.tool_call|qwen-code.tool_call" [$__range]))`, instant: true}},
 				columns: []column{{"tool_name", "Tool", ""}, {"decision", "Decision", ""}, {"source", "Source", ""}, {"value", "Count", "short"}}},
 
 			{id: "failed_calls", title: "Failed tool calls", desc: "Error text is not collected by default; error_type is.",
@@ -222,26 +226,26 @@ func dashboards() []dashboard {
 		tags:  []string{"agent-otel-kit"},
 		vars: []variable{
 			agentVar,
-			{name: "session", label: "Session", labelName: "session_id", matcher: `{__name__=~"claude_code_session_count_total|gemini_cli_session_count_total", agent_name=~"$agent"}`},
+			{name: "session", label: "Session", labelName: "session_id", matcher: `{__name__=~"claude_code_session_count_total|gemini_cli_session_count_total|qwen_code_session_count_total", agent_name=~"$agent"}`},
 			{name: "trace", label: "Trace ID", text: true},
 		},
 		panels: []panel{
-			{id: "sessions", title: "Sessions", desc: "Lifetime cost and tokens of each session seen in the range. Estimated cost (third-party endpoint, Claude Code default-rate guess) has its own column.", kind: table, x: 0, y: 0, w: 12, h: 10,
+			{id: "sessions", title: "Sessions", desc: "Lifetime cost and tokens of each session seen in the range. Estimated cost (third-party endpoint, Claude Code default-rate guess) has its own column. Qwen Code sessions are listed only when it adds session.id to metrics (telemetry.metrics.includeSessionId, see README).", kind: table, x: 0, y: 0, w: 12, h: 10,
 				queries: []query{
 					{ds: prom, expr: `sort_desc(sum by (agent_name, session_id) (max_over_time(claude_code_cost_usage_USD_total{agent_name=~"$agent", session_id=~"$session", cost_basis!="estimated"}[$__range])))`, instant: true},
 					{ds: prom, expr: `sum by (agent_name, session_id) (max_over_time(claude_code_cost_usage_USD_total{agent_name=~"$agent", session_id=~"$session", cost_basis="estimated"}[$__range]))`, instant: true},
-					{ds: prom, expr: `sum by (agent_name, session_id) (max_over_time({__name__=~"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total", agent_name=~"$agent", session_id=~"$session", ` + tokenOverlap + `}[$__range]))`, instant: true},
+					{ds: prom, expr: `sum by (agent_name, session_id) (max_over_time({__name__=~"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total", agent_name=~"$agent", session_id=~"$session", ` + tokenOverlap + `}[$__range]) or max_over_time(qwen_code_token_usage_total{agent_name=~"$agent", session_id=~"$session", session_id!="", type!~"cache|thought"}[$__range]))`, instant: true},
 				},
 				joinOn:  []string{"agent_name", "session_id"},
 				columns: []column{{"session_id", "Session", ""}, {"agent_name", "Agent", ""}, {"value #1", "Cost (USD)", "currencyUSD"}, {"value #2", "Estimated (USD)", "currencyUSD"}, {"value #3", "Tokens", "short"}}},
-			{id: "traces", title: "Interactions (traces)", desc: "Claude Code and Codex: one trace per prompt (Claude Code needs CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1). Gemini CLI: one trace per model call and per tool batch. Click a trace ID to open it.",
+			{id: "traces", title: "Interactions (traces)", desc: "Claude Code, Codex and Qwen Code: one trace per prompt (Claude Code needs CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1). Gemini CLI: one trace per model call and per tool batch. Click a trace ID to open it.",
 				kind: traceTable, x: 12, y: 0, w: 12, h: 10,
 				queries: []query{{ds: tempo, expr: `{resource.agent.name=~"$agent" && trace:rootName=~"` + traceRoots + `"}`}}},
 			{id: "trace_view", title: "Trace", desc: "Paste a trace ID into the Trace ID box above.", kind: traceView, x: 0, y: 10, w: 24, h: 16,
 				queries: []query{{ds: tempo, expr: "$trace"}}},
 
 			{id: "llm_latency", title: "Model request duration p95", kind: timeseries, unit: "ms", x: 0, y: 26, w: 12, h: 8,
-				queries: []query{{ds: loki, expr: `quantile_over_time(0.95, {service_name=~".+", agent_name=~"$agent"} | event_name=~"api_request|gemini_cli.api_response" or (event_name="codex.api_request" and endpoint=~".*/responses") | unwrap duration_ms [$__auto]) by (model)`, legend: "{{model}}"}}},
+				queries: []query{{ds: loki, expr: `quantile_over_time(0.95, {service_name=~".+", agent_name=~"$agent"} | event_name=~"api_request|gemini_cli.api_response|qwen-code.api_response" or (event_name="codex.api_request" and endpoint=~".*/responses") | unwrap duration_ms [$__auto]) by (model)`, legend: "{{model}}"}}},
 			{id: "event_rate", title: "Events per interval by type", kind: timeseries, unit: "short", stacked: true, x: 12, y: 26, w: 12, h: 8,
 				queries: []query{{ds: loki, expr: `sum by (event_name) (count_over_time({service_name=~".+", agent_name=~"$agent"} [$__auto]))`, legend: "{{event_name}}"}}},
 

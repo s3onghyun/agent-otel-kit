@@ -290,7 +290,7 @@ func agentChecks(cfg Config) []Result {
 		}
 	}
 	if configured == 0 {
-		out = append(out, Result{Warn, "agents", "no agent is configured; run agent-otel-kit setup claude|codex|gemini"})
+		out = append(out, Result{Warn, "agents", "no agent is configured; run agent-otel-kit setup claude|codex|gemini|qwen"})
 	}
 	return out
 }

@@ -57,11 +57,11 @@ func versionString(info *debug.BuildInfo, ok bool) string {
 	return out
 }
 
-const usage = `agent-otel-kit: send Claude Code, Codex and Gemini CLI telemetry to a local OpenTelemetry stack.
+const usage = `agent-otel-kit: send Claude Code, Codex, Gemini CLI and Qwen Code telemetry to a local OpenTelemetry stack.
 
 Usage:
-  agent-otel-kit setup <claude|codex|gemini|all> [--endpoint URL] [--no-traces] [--dry-run]
-  agent-otel-kit setup --undo <claude|codex|gemini|all> [--force]
+  agent-otel-kit setup <claude|codex|gemini|qwen|all> [--endpoint URL] [--no-traces] [--protocol auto|grpc|http] [--dry-run]
+  agent-otel-kit setup --undo <claude|codex|gemini|qwen|all> [--force]
   agent-otel-kit doctor [--endpoint URL] [--prometheus URL] [--grafana URL] ...
   agent-otel-kit version
 
@@ -69,6 +69,9 @@ setup edits only the agent's own user config file:
   claude  ~/.claude/settings.json   ("env" block; $CLAUDE_CONFIG_DIR is honoured)
   codex   ~/.codex/config.toml      ([otel] table; $CODEX_HOME is honoured)
   gemini  ~/.gemini/settings.json   ("telemetry" block)
+  qwen    ~/.qwen/settings.json     ("telemetry" block; OTLP/gRPC on port 4317
+                                     if --endpoint uses port 4318, else
+                                     OTLP/HTTP; --protocol grpc|http forces one)
 The original file is saved under ~/.agent-otel-kit/backups and
 setup --undo puts it back byte for byte.
 `
@@ -150,6 +153,7 @@ func runSetup(args []string, stdout, stderr io.Writer, env agents.Env) int {
 	force := fs.Bool("force", false, "with --undo: restore even if the file was edited after setup")
 	noTraces := fs.Bool("no-traces", false, "do not turn on trace export (Claude Code traces are beta)")
 	dryRun := fs.Bool("dry-run", false, "print the new file instead of writing it")
+	protocol := fs.String("protocol", "auto", "OTLP protocol for Qwen Code: grpc (the --endpoint host on port 4317), http, or auto (grpc if --endpoint uses port 4318, else http)")
 	pos, err := parseInterspersed(fs, args)
 	if err != nil {
 		return 2
@@ -193,6 +197,14 @@ func runSetup(args []string, stdout, stderr io.Writer, env agents.Env) int {
 		return 2
 	}
 	opts := agents.Options{Endpoint: ep, Traces: !*noTraces}
+	switch *protocol {
+	case "auto":
+	case "grpc", "http":
+		opts.Protocol = *protocol
+	default:
+		fmt.Fprintf(stderr, "agent-otel-kit setup: --protocol %q: want auto, grpc or http\n", *protocol)
+		return 2
+	}
 	code := 0
 	for _, a := range list {
 		path := a.ConfigPath(env)
@@ -217,12 +229,20 @@ func runSetup(args []string, stdout, stderr io.Writer, env agents.Env) int {
 			code = 1
 			continue
 		}
+		target := ep
+		if a.Name() == "qwen" {
+			var proto string
+			proto, target, _ = agents.QwenTarget(opts)
+			if opts.Protocol == "" && proto == "http" {
+				fmt.Fprintf(stderr, "qwen: using OTLP/HTTP for %s; gRPC is preferred for local collectors because of qwen-code#14466\n", target)
+			}
+		}
 		if *dryRun {
 			fmt.Fprintf(stdout, "# %s: %s\n%s", a.Name(), path, next)
 			continue
 		}
 		if existed && string(next) == string(cur) {
-			fmt.Fprintf(stdout, "%s: %s already points at %s\n", a.Name(), path, ep)
+			fmt.Fprintf(stdout, "%s: %s already points at %s\n", a.Name(), path, target)
 			continue
 		}
 		if err := store.Apply(a.Name(), path, next); err != nil {

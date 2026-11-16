@@ -294,7 +294,7 @@
         "kind": "Panel",
         "spec": {
           "display": {
-            "description": "Sessions started in the selected range (Claude Code and Gemini CLI sessions, Codex threads).",
+            "description": "Sessions started in the selected range (Claude Code, Gemini CLI and Qwen Code sessions, Codex threads).",
             "name": "Sessions"
           },
           "plugin": {
@@ -315,7 +315,7 @@
                   "kind": "PrometheusTimeSeriesQuery",
                   "spec": {
                     "instant": true,
-                    "query": "sum(increase({__name__=~\"claude_code_session_count_total|gemini_cli_session_count_total|codex_thread_started_total\", agent_name=~\"$agent\"}[$__range] anchored))"
+                    "query": "sum(increase({__name__=~\"claude_code_session_count_total|gemini_cli_session_count_total|codex_thread_started_total|qwen_code_session_count_total\", agent_name=~\"$agent\"}[$__range] anchored))"
                   }
                 }
               }
@@ -327,7 +327,7 @@
         "kind": "Panel",
         "spec": {
           "display": {
-            "description": "Codex cached_input, cache_write_input, reasoning_output and total and Gemini CLI cache overlap with input or output and are left out of the Tokens total.",
+            "description": "Codex cached_input, cache_write_input, reasoning_output and total, Gemini CLI cache and Qwen Code cache and thought overlap with input or output and are left out of the Tokens total.",
             "name": "Tokens per interval by type"
           },
           "plugin": {
@@ -360,7 +360,7 @@
                   "kind": "PrometheusTimeSeriesQuery",
                   "spec": {
                     "minStep": "1m",
-                    "query": "sum by (agent_name, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum\", agent_name=~\"$agent\", model=~\"$model\"}[$__interval] anchored))",
+                    "query": "sum by (agent_name, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum|qwen_code_token_usage_total\", agent_name=~\"$agent\", model=~\"$model\"}[$__interval] anchored))",
                     "seriesNameFormat": "{{agent_name}} {{type}}"
                   }
                 }
@@ -373,7 +373,7 @@
         "kind": "Panel",
         "spec": {
           "display": {
-            "description": "Codex cached_input, cache_write_input, reasoning_output and total and Gemini CLI cache overlap with input or output and are left out of the Tokens total.",
+            "description": "Codex cached_input, cache_write_input, reasoning_output and total, Gemini CLI cache and Qwen Code cache and thought overlap with input or output and are left out of the Tokens total.",
             "name": "Tokens by agent, model and type"
           },
           "plugin": {
@@ -430,7 +430,7 @@
                   "kind": "PrometheusTimeSeriesQuery",
                   "spec": {
                     "instant": true,
-                    "query": "sort_desc(sum by (agent_name, model, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum\", agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored)))"
+                    "query": "sort_desc(sum by (agent_name, model, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum|qwen_code_token_usage_total\", agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored)))"
                   }
                 }
               }
@@ -442,7 +442,7 @@
         "kind": "Panel",
         "spec": {
           "display": {
-            "description": "All tokens in the selected range. Cached input that Codex and Gemini CLI count inside input is not added again.",
+            "description": "All tokens in the selected range. Cached input that Codex, Gemini CLI and Qwen Code count inside input, and the reasoning Qwen Code counts inside output, are not added again.",
             "name": "Tokens"
           },
           "plugin": {
@@ -463,7 +463,7 @@
                   "kind": "PrometheusTimeSeriesQuery",
                   "spec": {
                     "instant": true,
-                    "query": "sum(increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum\", agent_name=~\"$agent\", model=~\"$model\", type!~\"total|cached_input|cache_write_input|reasoning_output|cache\"}[$__range] anchored))"
+                    "query": "sum(increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum\", agent_name=~\"$agent\", model=~\"$model\", type!~\"total|cached_input|cache_write_input|reasoning_output|cache\"}[$__range] anchored) or increase(qwen_code_token_usage_total{agent_name=~\"$agent\", model=~\"$model\", type!~\"cache|thought\"}[$__range] anchored))"
                   }
                 }
               }

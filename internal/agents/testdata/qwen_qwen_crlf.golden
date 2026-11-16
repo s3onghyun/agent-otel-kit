@@ -1,0 +1,13 @@
+{
+  "$version": 4,
+  "ui": {
+    "theme": "Qwen Dark"
+  },
+  "telemetry": {
+    "enabled": true,
+    "target": "local",
+    "otlpEndpoint": "http://localhost:4317",
+    "otlpProtocol": "grpc",
+    "logPrompts": false
+  }
+}

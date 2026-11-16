@@ -129,7 +129,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "All tokens in the selected range. Cached input that Codex and Gemini CLI count inside input is not added again.",
+      "description": "All tokens in the selected range. Cached input that Codex, Gemini CLI and Qwen Code count inside input, and the reasoning Qwen Code counts inside output, are not added again.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -166,7 +166,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum\", agent_name=~\"$agent\", model=~\"$model\", type!~\"total|cached_input|cache_write_input|reasoning_output|cache\"}[$__range] anchored))",
+          "expr": "sum(increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum\", agent_name=~\"$agent\", model=~\"$model\", type!~\"total|cached_input|cache_write_input|reasoning_output|cache\"}[$__range] anchored) or increase(qwen_code_token_usage_total{agent_name=~\"$agent\", model=~\"$model\", type!~\"cache|thought\"}[$__range] anchored))",
           "instant": true,
           "legendFormat": "",
           "range": false,
@@ -181,7 +181,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Sessions started in the selected range (Claude Code and Gemini CLI sessions, Codex threads).",
+      "description": "Sessions started in the selected range (Claude Code, Gemini CLI and Qwen Code sessions, Codex threads).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -218,7 +218,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase({__name__=~\"claude_code_session_count_total|gemini_cli_session_count_total|codex_thread_started_total\", agent_name=~\"$agent\"}[$__range] anchored))",
+          "expr": "sum(increase({__name__=~\"claude_code_session_count_total|gemini_cli_session_count_total|codex_thread_started_total|qwen_code_session_count_total\", agent_name=~\"$agent\"}[$__range] anchored))",
           "instant": true,
           "legendFormat": "",
           "range": false,
@@ -346,7 +346,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Codex cached_input, cache_write_input, reasoning_output and total and Gemini CLI cache overlap with input or output and are left out of the Tokens total.",
+      "description": "Codex cached_input, cache_write_input, reasoning_output and total, Gemini CLI cache and Qwen Code cache and thought overlap with input or output and are left out of the Tokens total.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -392,7 +392,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (agent_name, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum\", agent_name=~\"$agent\", model=~\"$model\"}[$__interval] anchored))",
+          "expr": "sum by (agent_name, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum|qwen_code_token_usage_total\", agent_name=~\"$agent\", model=~\"$model\"}[$__interval] anchored))",
           "legendFormat": "{{agent_name}} {{type}}",
           "range": true,
           "refId": "A"
@@ -466,7 +466,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Codex cached_input, cache_write_input, reasoning_output and total and Gemini CLI cache overlap with input or output and are left out of the Tokens total.",
+      "description": "Codex cached_input, cache_write_input, reasoning_output and total, Gemini CLI cache and Qwen Code cache and thought overlap with input or output and are left out of the Tokens total.",
       "fieldConfig": {
         "defaults": {},
         "overrides": [
@@ -501,7 +501,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sort_desc(sum by (agent_name, model, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum\", agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored)))",
+          "expr": "sort_desc(sum by (agent_name, model, type) (increase({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total|codex_turn_token_usage_sum|qwen_code_token_usage_total\", agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored)))",
           "format": "table",
           "instant": true,
           "legendFormat": "",

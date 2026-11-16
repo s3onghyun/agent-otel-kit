@@ -140,3 +140,21 @@ func TestParseSample(t *testing.T) {
 		t.Fatal("parsed garbage")
 	}
 }
+
+func TestQwenConfigBothProtocols(t *testing.T) {
+	srv := fakeStack(t, selfMetrics, `{"metric":{"agent_name":"qwen-code"},"value":[0,"5"]}`)
+	qwen, _ := agents.Get("qwen")
+	for _, protocol := range []string{"grpc", "http"} {
+		settings, err := qwen.Apply(nil, agents.Options{Endpoint: agents.DefaultEndpoint, Protocol: protocol})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rs := Run(context.Background(), cfgFor(srv, map[string]string{"/home/u/.qwen/settings.json": string(settings)}))
+		if r := find(t, rs, "config qwen"); r.Level != OK || !strings.Contains(r.Detail, "OTLP/"+protocol) {
+			t.Errorf("%s: config qwen = %+v", protocol, r)
+		}
+		if r := find(t, rs, "agent metrics"); r.Level != OK || !strings.Contains(r.Detail, "qwen-code") {
+			t.Errorf("%s: agent metrics = %+v", protocol, r)
+		}
+	}
+}
