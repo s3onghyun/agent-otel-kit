@@ -1,0 +1,24 @@
+{
+  "$version": 4,
+  "security": {
+    "auth": {
+      "selectedType": "openai"
+    }
+  },
+  "model": {
+    "name": "qwen3-coder-plus"
+  },
+  "privacy": {
+    "usageStatisticsEnabled": false
+  },
+  "telemetry": {
+    "enabled": true,
+    "otlpProtocol": "http",
+    "metrics": {
+      "includeSessionId": true
+    },
+    "target": "local",
+    "otlpEndpoint": "http://localhost:4318",
+    "logPrompts": false
+  }
+}

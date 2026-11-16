@@ -18,6 +18,10 @@ type Options struct {
 	Endpoint string
 	// Traces enables trace export where it is opt-in (Claude Code beta).
 	Traces bool
+	// Protocol is the OTLP protocol for agents that offer a choice (Qwen
+	// Code): "grpc" or "http". Empty means the agent's setup default; for
+	// Check it means either is accepted.
+	Protocol string
 }
 
 // DefaultEndpoint is the OTLP/HTTP port published by compose.yaml.
@@ -33,7 +37,7 @@ type Status struct {
 
 // Agent edits one agent's config file.
 type Agent interface {
-	// Name is the CLI name: claude, codex or gemini.
+	// Name is the CLI name: claude, codex, gemini or qwen.
 	Name() string
 	// Binary is the executable looked up on PATH by doctor.
 	Binary() string

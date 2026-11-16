@@ -182,7 +182,7 @@
         "kind": "Panel",
         "spec": {
           "display": {
-            "description": "Who allowed or rejected each tool call: Claude Code and Codex tool_decision events (with source), Gemini CLI tool_call events.",
+            "description": "Who allowed or rejected each tool call: Claude Code and Codex tool_decision events (with source), Gemini CLI and Qwen Code tool_call events.",
             "name": "Permission decisions"
           },
           "plugin": {
@@ -238,7 +238,7 @@
                 "plugin": {
                   "kind": "LokiTimeSeriesQuery",
                   "spec": {
-                    "query": "sum by (tool_name, decision, source) (count_over_time({service_name=~\".+\", agent_name=~\"$agent\"} | event_name=~\"tool_decision|codex.tool_decision|gemini_cli.tool_call\" [$__range]))"
+                    "query": "sum by (tool_name, decision, source) (count_over_time({service_name=~\".+\", agent_name=~\"$agent\"} | event_name=~\"tool_decision|codex.tool_decision|gemini_cli.tool_call|qwen-code.tool_call\" [$__range]))"
                   }
                 }
               }

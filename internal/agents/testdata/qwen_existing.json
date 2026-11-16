@@ -1,0 +1,23 @@
+{
+  "$version": 4,
+  "security": {
+    "auth": {
+      "selectedType": "openai"
+    }
+  },
+  "model": {
+    "name": "qwen3-coder-plus"
+  },
+  "privacy": {
+    "usageStatisticsEnabled": false
+  },
+  "telemetry": {
+    "enabled": false,
+    "otlpProtocol": "http",
+    "otlpLogsEndpoint": "http://elsewhere:4318/v1/logs",
+    "outfile": ".qwen/telemetry.log",
+    "metrics": {
+      "includeSessionId": true
+    }
+  }
+}

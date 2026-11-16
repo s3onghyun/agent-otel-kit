@@ -3,7 +3,7 @@
 > 本文为 AI 辅助翻译，以 [English README](README.md) 为准；发现问题欢迎提 issue 或 PR。
 > This is an AI-assisted translation; the [English README](README.md) is authoritative.
 
-只需一条 `docker compose up`，即可在你自己的机器上查看 Claude Code、Codex 和 Gemini CLI 的费用、token、工具调用和链路（traces）。
+只需一条 `docker compose up`，即可在你自己的机器上查看 Claude Code、Codex、Gemini CLI 和 Qwen Code 的费用、token、工具调用和链路（traces）。
 
 ![演示：Claude Code、Codex 和 Gemini CLI 的会话进入 Grafana 费用与 token 仪表盘，随后是来自 Tempo 的 Claude Code 链路瀑布图](docs/demo.gif)
 
@@ -19,7 +19,7 @@ agent-otel-kit 是一套面向 AI 编程 agent 的本地 OpenTelemetry 栈：一
 git clone https://github.com/s3onghyun/agent-otel-kit && cd agent-otel-kit
 docker compose up -d                       # 或：make up
 brew install s3onghyun/tap/agent-otel-kit  # 或使用 release 压缩包、go install、make build
-agent-otel-kit setup claude                # 或 codex、gemini、all
+agent-otel-kit setup claude                # 或 codex、gemini、qwen、all
 # 启动一个新的 agent 会话并使用一分钟左右，然后：
 agent-otel-kit doctor
 ```
@@ -43,10 +43,10 @@ agent-otel-kit doctor
 
 默认不采集：
 
-- prompt 文本、模型回复、工具参数、工具输出、文件路径、shell 命令和错误信息（包括 `error.message` 和 span 异常信息，其中可能含有文件路径）。除非你主动开启（`OTEL_LOG_USER_PROMPTS`、`OTEL_LOG_TOOL_DETAILS`、Codex `log_user_prompt`、Gemini `logPrompts`），agent 本身已经会隐去其中大部分内容。collector 会在 `transform/redact` 中再次删除这些属性，因此即使误开了上述某个 agent 开关，内容也不会被存储。如需保留，在 collector 的环境变量中设置 `AGENT_OTEL_KIT_CAPTURE_CONTENT=true`。
+- prompt 文本、模型回复、工具参数、工具输出、文件路径、shell 命令和错误信息（包括 `error.message` 和 span 异常信息，其中可能含有文件路径）。除非你主动开启（`OTEL_LOG_USER_PROMPTS`、`OTEL_LOG_TOOL_DETAILS`、Codex `log_user_prompt`、Gemini 和 Qwen Code 的 `logPrompts`），agent 本身已经会隐去其中大部分内容。collector 会在 `transform/redact` 中再次删除这些属性，因此即使误开了上述某个 agent 开关，内容也不会被存储。如需保留，在 collector 的环境变量中设置 `AGENT_OTEL_KIT_CAPTURE_CONTENT=true`。
 - 进程命令行（`process.command_args`）。Gemini CLI 将其作为 resource 属性发送，而对于 `gemini -p "..."`，其中包含 prompt。
 - `user.email`。Claude Code 会在每个数据点上附加账户邮箱，Gemini CLI 的文档也说明使用 Google 登录时同样如此（使用 API key 时它没有发送）；除非设置 `AGENT_OTEL_KIT_KEEP_EMAIL=true`，collector 会将其删除。
-- 由于 Gemini CLI 默认记录 prompt，`setup gemini` 会设置 `logPrompts: false`。
+- 由于 Gemini CLI 和 Qwen Code 默认记录 prompt，`setup gemini` 和 `setup qwen` 会设置 `logPrompts: false`。即使关闭 prompt 记录，Qwen Code 仍会发送其后台 subagent 的最终回答（`result`、`execution_summary`）；collector 也会删除它们。
 
 保留的其他标识符：`session.id`（Codex：`conversation.id`）、`user.account_uuid`、`organization.id`、Codex `user.account_id`、`installation.id`、`terminal.type`、主机名和操作系统。所有数据都留在你的机器上；栈中没有任何组件把数据发往别处（Grafana 和 Loki 的使用情况上报已关闭）。
 
@@ -59,8 +59,11 @@ agent-otel-kit doctor
 | Claude Code | `~/.claude/settings.json`（支持 `$CLAUDE_CONFIG_DIR`） | `env`：`CLAUDE_CODE_ENABLE_TELEMETRY=1`、用于指标和日志的 OTLP exporter、`OTEL_EXPORTER_OTLP_ENDPOINT`、`http/protobuf`、10 s 的指标间隔，以及 traces beta（`OTEL_TRACES_EXPORTER=otlp`、`CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`；用 `--no-traces` 跳过） |
 | Codex | `~/.codex/config.toml`（支持 `$CODEX_HOME`） | `[otel]` 下一个带标记的块：`exporter`、`trace_exporter` 和 `metrics_exporter` 设为 `otlp-http`，并使用 `/v1/logs`、`/v1/traces`、`/v1/metrics` URL，`log_user_prompt = false`；其他 `[otel]` 键和文件的其余部分保持不变 |
 | Gemini CLI | `~/.gemini/settings.json` | `telemetry`：`enabled`、`target: "local"`、`otlpEndpoint`、`otlpProtocol: "http"`、`logPrompts: false`；删除会覆盖 endpoint 的 `outfile` |
+| Qwen Code | `~/.qwen/settings.json` | `telemetry`：`enabled`、`target: "local"`、`otlpEndpoint`、`otlpProtocol`、`logPrompts: false`；删除会覆盖 endpoint 的 `outfile` 以及按信号的 `otlpTracesEndpoint`、`otlpLogsEndpoint`、`otlpMetricsEndpoint`。setup 新建的文件还会写入 `"$version": 4`，这样 Qwen Code 首次启动时不会重写该文件。`privacy.usageStatisticsEnabled`（Qwen Code 自己的使用统计）保持不变 |
 
 带注释的配置文件不会被修改（setup 会报错退出）；这种情况下请手动添加该配置块。
+
+Qwen Code 默认使用 OTLP/gRPC（`otlpProtocol: "grpc"`、`otlpEndpoint: "http://localhost:4317"`），因为它的 OTLP/HTTP exporter 有一个尚未关闭的问题报告，称会发送空的请求体（[QwenLM/qwen-code#14466](https://github.com/QwenLM/qwen-code/issues/14466)）；在下面 0.27.4 的运行中 OTLP/HTTP 也能正常工作。setup 把 `--endpoint` 中的端口 4318 换成 4317 得到 gRPC endpoint。`setup qwen --protocol http` 则以 `otlpProtocol: "http"` 写入 `--endpoint` 的 URL；endpoint 不在 4318 端口时需要用它。
 
 支持的版本：
 
@@ -69,12 +72,13 @@ agent-otel-kit doctor
 | Claude Code 2.1.325 | 已在实际运行的栈上验证：指标、事件和链路（需开启 traces beta 标志）。 |
 | Codex 0.169.0（`codex exec`） | 已用 `setup codex` 在实际运行的栈上验证：指标、事件和链路。token 来自 `codex.turn.token_usage` 直方图，会话来自 `codex.thread.started`，工具调用来自 `codex.tool_result` 事件。没有费用指标。Codex 的指标不带会话 ID，因此按会话的表格中没有 Codex 会话。 |
 | Gemini CLI 0.68.0（`gemini -p`，API key） | 已用 `setup gemini` 在实际运行的栈上验证：指标、事件和链路。工具调用来自 `gemini_cli.tool_call` 事件。没有费用指标。 |
+| Qwen Code 0.27.4（`qwen -p`，OpenAI 兼容认证） | 已用 `setup qwen`（gRPC）和 `setup qwen --protocol http` 在实际运行的栈上验证：指标、事件和链路，包括一次 `read_file` 调用和一次被拒绝的 shell 调用。工具调用来自 `qwen-code.tool_call` 事件。没有费用指标。模型服务端是使用 dummy key 的本地 OpenAI 兼容 mock，而不是真实的 provider。 |
 
-只测试了非交互模式和上面列出的认证方式。使用个人 Google 登录时，Google 拒绝了此客户端的 Gemini CLI（"no longer supported for Gemini Code Assist for individuals"），因此该路径改用 AI Studio API key 测试。
+只测试了非交互模式和上面列出的认证方式。使用个人 Google 登录时，Google 拒绝了此客户端的 Gemini CLI（"no longer supported for Gemini Code Assist for individuals"），因此该路径改用 AI Studio API key 测试。Qwen Code 是针对 OpenAI 兼容的 mock 服务端运行的：使用真实的阿里云百炼（Model Studio / DashScope）或 DeepSeek key 时遥测路径相同，但那样的运行还能看到这些 provider 实际报告的模型名、token 数（缓存与 reasoning token）和延迟。
 
 ## delta temporality 陷阱
 
-Claude Code、Codex 和 Gemini CLI 默认以 delta temporality 导出计数器（每次导出只携带自上次以来的增量），而 Prometheus 只存储累积（cumulative）计数器，所以直接的 OTLP 到 Prometheus 路径会丢弃或误读这些数据。collector 的 `delta_to_cumulative` processor 在 Prometheus exporter 之前为每个序列维护累计总数，因此 agent 可以保留默认设置。
+Claude Code、Codex 和 Gemini CLI 默认以 delta temporality 导出计数器（每次导出只携带自上次以来的增量；Qwen Code 发送累积计数器），而 Prometheus 只存储累积（cumulative）计数器，所以直接的 OTLP 到 Prometheus 路径会丢弃或误读这些数据。collector 的 `delta_to_cumulative` processor 在 Prometheus exporter 之前为每个序列维护累计总数，因此 agent 可以保留默认设置。
 
 `compose.yaml` 中两个相关的 Prometheus 设置：`created-timestamp-zero-ingestion` 在序列开始时插入一个零值样本，使短会话的第一次导出也能被计入；`promql-extended-range-selectors` 启用 `increase(x[$__range] anchored)`，仪表盘用它得到精确的总数，避免 `increase()` 的外推。
 
@@ -94,19 +98,21 @@ Claude Code、Codex 和 Gemini CLI 默认以 delta temporality 导出计数器�
 
 ![Grafana：agent 会话与链路](docs/screenshots/grafana-sessions-traces.png)
 
-所有标签都统一为 `agent_name`（`claude-code`、`codex`、`gemini-cli`），由每个 agent 设置的 `service.name` 推导而来。在 agent 上设置 `OTEL_RESOURCE_ATTRIBUTES=agent.name=<name>` 可以覆盖它。Claude Code 自己的 `agent.name` 属性（subagent 名称）和 Codex 的 `agent_name` 属性（agent 路径，主 agent 为 `/root`）保留为 `subagent.name`。Codex 的 `conversation.id` 被复制到 `session.id`，其 `token_type` 被复制到 `type`。
+所有标签都统一为 `agent_name`（`claude-code`、`codex`、`gemini-cli`、`qwen-code`），由每个 agent 设置的 `service.name` 推导而来。在 agent 上设置 `OTEL_RESOURCE_ATTRIBUTES=agent.name=<name>` 可以覆盖它。Claude Code 自己的 `agent.name` 属性（subagent 名称）和 Codex 的 `agent_name` 属性（agent 路径，主 agent 为 `/root`）保留为 `subagent.name`。Codex 的 `conversation.id` 被复制到 `session.id`，其 `token_type` 被复制到 `type`。
 
-token 总数（Tokens 统计值和按会话的 Tokens 列）只累加互不重叠的 token 类型：Codex 把缓存输入计入 `input`、把 reasoning 计入 `output`，Gemini CLI 把 `cache` 计入 `input`，因此这些部分（以及 Codex 的 `total`）不会被重复累加。Claude Code 的 `cacheRead` 和 `cacheCreation` 与 `input` 相互独立，会被累加。按类型的细分面板显示所有类型，包括重叠的类型。
+token 总数（Tokens 统计值和按会话的 Tokens 列）只累加互不重叠的 token 类型：Codex 把缓存输入计入 `input`、把 reasoning 计入 `output`，Gemini CLI 把 `cache` 计入 `input`，Qwen Code 把 `cache` 计入 `input`、并在 OpenAI 兼容 provider 下把 `thought`（reasoning）计入 `output`，因此这些部分（以及 Codex 的 `total`）不会被重复累加。Claude Code 的 `cacheRead` 和 `cacheCreation` 与 `input` 相互独立，会被累加。按类型的细分面板显示所有类型，包括重叠的类型。
 
 仪表盘上可见的 agent 差异：
 
 - Codex 会把已运行但以非零状态退出的 shell 命令记为成功的工具调用。在 code mode 下，它还会在每个内部 `exec_command` 旁边报告外层的 `exec` 工具。
 - Codex 会发送许多短小的内部链路（`auth`、`fs.read_file`……）；链路面板对 Codex 只列出 `turn/start`。Gemini CLI 没有按 prompt 的链路：它为每次模型调用发送一条 `llm_call` 链路，为每批工具调用发送一条 `schedule_tool_calls` 链路。
 - 在默认的 WebSocket 传输下，Codex 不记录每个请求的模型耗时，因此模型请求面板只显示 Codex 的 HTTP `/responses` 请求。
+- Qwen Code 每个 prompt 发送一条 `qwen-code.interaction` 链路。其后台 subagent（例如 memory extractor）的模型调用会作为单独的 `qwen-code.llm_request` 链路到达，链路面板不列出它们。
+- 只有在 `~/.qwen/settings.json` 中设置 `"telemetry": {"metrics": {"includeSessionId": true}}`（或 `QWEN_TELEMETRY_METRICS_INCLUDE_SESSION_ID=true`）时，Qwen Code 才会给指标加上 `session.id`。Qwen Code 警告这会为每个会话产生新的时间序列，所以 setup 不开启它；不开启时，按会话的表格中没有 Qwen Code 会话。事件和 span 始终带有 `session.id`。
 
-在 Prometheus 中看到的、来自 Claude Code 2.1.325 的指标名：`claude_code_cost_usage_USD_total`、`claude_code_token_usage_tokens_total`、`claude_code_session_count_total`、`claude_code_active_time_seconds_total`。来自 Codex 0.169.0（一次简短的 `codex exec` 运行中出现 74 个指标族），其中包括：`codex_turn_token_usage_{bucket,count,sum}`（标签 `token_type`）、`codex_thread_started_total`、`codex_tool_call_total`、`codex_turn_e2e_duration_ms_milliseconds_*`。来自 Gemini CLI 0.68.0：`gemini_cli_token_usage_total`（标签 `type`：`input`、`output`、`thought`、`cache`、`tool`）、`gemini_cli_session_count_total`、`gemini_cli_tool_call_count_total`、`gemini_cli_api_request_count_total`。来自 collector：`agent_otel_kit_tool_duration_milliseconds_{bucket,count,sum}`。
+在 Prometheus 中看到的、来自 Claude Code 2.1.325 的指标名：`claude_code_cost_usage_USD_total`、`claude_code_token_usage_tokens_total`、`claude_code_session_count_total`、`claude_code_active_time_seconds_total`。来自 Codex 0.169.0（一次简短的 `codex exec` 运行中出现 74 个指标族），其中包括：`codex_turn_token_usage_{bucket,count,sum}`（标签 `token_type`）、`codex_thread_started_total`、`codex_tool_call_total`、`codex_turn_e2e_duration_ms_milliseconds_*`。来自 Gemini CLI 0.68.0：`gemini_cli_token_usage_total`（标签 `type`：`input`、`output`、`thought`、`cache`、`tool`）、`gemini_cli_session_count_total`、`gemini_cli_tool_call_count_total`、`gemini_cli_api_request_count_total`。来自 Qwen Code 0.27.4：`qwen_code_token_usage_total`（标签 `type`：`input`、`output`、`thought`、`cache`）、`qwen_code_session_count_total`、`qwen_code_tool_call_count_total`（标签 `function_name`、`decision`、`success`）、`qwen_code_api_request_count_total`、`qwen_code_api_request_latency_milliseconds_*`。来自 collector：`agent_otel_kit_tool_duration_milliseconds_{bucket,count,sum}`。
 
-在 Loki 中看到的事件名：Claude Code `tool_result`、`tool_decision`、`api_request`、`user_prompt`……；Codex `codex.tool_result`、`codex.tool_decision`、`codex.sse_event`、`codex.api_request`、`codex.user_prompt`……；Gemini CLI `gemini_cli.tool_call`、`gemini_cli.api_request`、`gemini_cli.api_response`、`gemini_cli.file_operation`、`gemini_cli.user_prompt`……。Claude Code 还定义了 `claude_code.lines_of_code.count`、`claude_code.commit.count`、`claude_code.pull_request.count` 和 `claude_code.code_edit_tool.decision`，它们只在发生编辑、commit 或 pull request 后才会出现。
+在 Loki 中看到的事件名：Claude Code `tool_result`、`tool_decision`、`api_request`、`user_prompt`……；Codex `codex.tool_result`、`codex.tool_decision`、`codex.sse_event`、`codex.api_request`、`codex.user_prompt`……；Gemini CLI `gemini_cli.tool_call`、`gemini_cli.api_request`、`gemini_cli.api_response`、`gemini_cli.file_operation`、`gemini_cli.user_prompt`……；Qwen Code `qwen-code.tool_call`、`qwen-code.api_request`、`qwen-code.api_response`、`qwen-code.file_operation`、`qwen-code.user_prompt`……。Claude Code 还定义了 `claude_code.lines_of_code.count`、`claude_code.commit.count`、`claude_code.pull_request.count` 和 `claude_code.code_edit_tool.decision`，它们只在发生编辑、commit 或 pull request 后才会出现。
 
 截图取自这套栈，数据来自在作者机器上运行的真实会话：Claude Code（`make demo`）、`codex exec` 和 `gemini -p`，然后运行 `make screenshots`。顶部的演示 GIF 是在一次这样的运行期间用 headless Chromium 录制的同一组仪表盘，只做了裁剪和加速；`docs/demo.mp4` 是其原始文件。
 
@@ -169,11 +175,11 @@ Perses 在 <http://localhost:8080> 启动，带有项目 `agent-otel-kit`、Prom
 
 - `agent-otel-kit doctor` 每项检查输出一行：栈的健康状态、collector 是否收到了数据（依据它自身的 `otelcol_receiver_accepted_*` 计数器）、哪些 `agent_name` 值在 Prometheus 中有指标，以及每个 agent 的配置是否指向 collector。
 - `docker compose up` 之后的最多一分钟内，Loki 和 Tempo 会返回 503。
-- 没有数据到达：遥测设置在 agent 启动时读取，所以 `setup` 之后要启动一个新会话。`OTEL_EXPORTER_OTLP_ENDPOINT` 之类的 shell 变量可能指向别处；doctor 会对此发出警告。Claude Code 会忽略项目级 `.claude/settings.json` 中的 OTel exporter 变量。
+- 没有数据到达：遥测设置在 agent 启动时读取，所以 `setup` 之后要启动一个新会话。`OTEL_EXPORTER_OTLP_ENDPOINT` 之类的 shell 变量可能指向别处；doctor 会对此发出警告。Claude Code 会忽略项目级 `.claude/settings.json` 中的 OTel exporter 变量。Qwen Code 中 `QWEN_TELEMETRY_*` 变量和 `OTEL_EXPORTER_OTLP_ENDPOINT` 优先于 `~/.qwen/settings.json`。
 - 指标到达较晚：除非设置了 `OTEL_METRIC_EXPORT_INTERVAL`，Claude Code 每 60 s 导出一次指标（setup 设置为 10 s）；事件和 span 每 5 s 导出一次。
 - 没有来自 Claude Code 的链路：traces beta 需要 `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1` 和 `OTEL_TRACES_EXPORTER=otlp`。
 - 要查看原始数据，用 `make up-debug` 启动，然后运行 `docker compose logs -f otel-collector`。
-- `make test-collector` 用从 Codex、Gemini CLI 和 Claude Code 录制的 payload（位于 `collector/testdata/`）运行 collector 配置，并检查标准化、工具直方图、脱敏处理，以及 Claude Code 的模型后缀和 cost basis。
+- `make test-collector` 用从 Codex、Gemini CLI、Qwen Code 和 Claude Code 录制的 payload（位于 `collector/testdata/`）运行 collector 配置，并检查标准化、工具直方图、脱敏处理，以及 Claude Code 的模型后缀和 cost basis。
 - 重启 collector 会重置其 delta-to-cumulative 状态；仪表盘会将其视为计数器重置。
 - 内存上限：collector、Prometheus、Loki 和 Tempo 各 512 MiB，Grafana 384 MiB，Perses 256 MiB。
 - `make clean` 会停止栈并删除其数据卷。

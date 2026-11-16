@@ -52,6 +52,10 @@ func TestApplyGolden(t *testing.T) {
 		{"codex", "codex_no_otel.toml", testOpts},
 		{"codex", "codex_crlf.toml", testOpts},
 		{"codex", "", testOpts},
+		{"qwen", "qwen_existing.json", testOpts},
+		{"qwen", "qwen_existing.json", Options{Endpoint: testOpts.Endpoint, Traces: true, Protocol: "http"}},
+		{"qwen", "qwen_crlf.json", testOpts},
+		{"qwen", "", testOpts},
 	}
 	for _, c := range cases {
 		name := c.agent + "_" + strings.TrimSuffix(strings.TrimSuffix(c.fixture, ".json"), ".toml")
@@ -60,6 +64,9 @@ func TestApplyGolden(t *testing.T) {
 		}
 		if !c.opts.Traces {
 			name += "_notraces"
+		}
+		if c.opts.Protocol != "" {
+			name += "_" + c.opts.Protocol
 		}
 		t.Run(name, func(t *testing.T) {
 			a, err := Get(c.agent)
@@ -163,7 +170,7 @@ func TestClaudeNoTracesRemovesTraceKeys(t *testing.T) {
 }
 
 func TestJSONAgentsRejectInvalidJSON(t *testing.T) {
-	for _, name := range []string{"claude", "gemini"} {
+	for _, name := range []string{"claude", "gemini", "qwen"} {
 		a, _ := Get(name)
 		if _, err := a.Apply([]byte("{\n  // comment\n  \"a\": 1\n}\n"), testOpts); err == nil {
 			t.Errorf("%s: Apply on JSON with comments succeeded", name)
@@ -177,6 +184,7 @@ func TestConfigPaths(t *testing.T) {
 		"claude": "/h/.claude/settings.json",
 		"codex":  "/h/.codex/config.toml",
 		"gemini": "/h/.gemini/settings.json",
+		"qwen":   "/h/.qwen/settings.json",
 	}
 	for name, p := range want {
 		a, _ := Get(name)
@@ -211,6 +219,113 @@ func TestNormalizeEndpoint(t *testing.T) {
 	for _, bad := range []string{"localhost:4318", "grpc://x:4317", "http://"} {
 		if _, err := NormalizeEndpoint(bad); err == nil {
 			t.Errorf("NormalizeEndpoint(%q) succeeded", bad)
+		}
+	}
+}
+
+func TestQwenGRPCEndpoint(t *testing.T) {
+	for in, want := range map[string]string{
+		"http://localhost:4318":   "http://localhost:4317",
+		"https://otel.lan:4318":   "https://otel.lan:4317",
+		"http://[::1]:4318":       "http://[::1]:4317",
+		"http://127.0.0.1:4318/x": "http://127.0.0.1:4317",
+	} {
+		got, err := QwenGRPCEndpoint(in)
+		if err != nil || got != want {
+			t.Errorf("QwenGRPCEndpoint(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
+	a, _ := Get("qwen")
+	for _, ep := range []string{"https://otel.lan/otlp", "http://localhost:14318"} {
+		if _, err := a.Apply(nil, Options{Endpoint: ep}); err == nil || !strings.Contains(err.Error(), "--protocol http") {
+			t.Errorf("Apply with %s over gRPC: err = %v, want a hint to use --protocol http", ep, err)
+		}
+		if _, err := a.Apply(nil, Options{Endpoint: ep, Protocol: "http"}); err != nil {
+			t.Errorf("Apply with %s over HTTP: %v", ep, err)
+		}
+	}
+}
+
+func TestQwenNewFileHasSettingsVersion(t *testing.T) {
+	// Without $version Qwen Code rewrites the file on first start, and
+	// setup --undo would then refuse to restore it.
+	a, _ := Get("qwen")
+	out, err := a.Apply(nil, testOpts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(out), "{\n  \"$version\": 4,\n") {
+		t.Fatalf("new file does not start with $version:\n%s", out)
+	}
+	// An existing file is not given one: a missing $version there means
+	// Qwen Code still has to migrate it.
+	out, err = a.Apply([]byte(`{"general":{"vimMode":true}}`), testOpts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(out), "$version") {
+		t.Fatalf("$version added to an existing file:\n%s", out)
+	}
+}
+
+func TestQwenCheck(t *testing.T) {
+	a, _ := Get("qwen")
+	any := Options{Endpoint: testOpts.Endpoint}
+	for name, c := range map[string]struct {
+		in         string
+		configured bool
+	}{
+		"grpc":                 {`{"telemetry":{"enabled":true,"target":"local","otlpEndpoint":"http://localhost:4317","otlpProtocol":"grpc"}}`, true},
+		"grpc default":         {`{"telemetry":{"enabled":true,"target":"local","otlpEndpoint":"http://localhost:4317"}}`, true},
+		"grpc with path":       {`{"telemetry":{"enabled":true,"target":"local","otlpEndpoint":"http://localhost:4317/"}}`, true},
+		"http":                 {`{"telemetry":{"enabled":true,"target":"local","otlpEndpoint":"http://localhost:4318/","otlpProtocol":"http"}}`, true},
+		"grpc on http port":    {`{"telemetry":{"enabled":true,"target":"local","otlpEndpoint":"http://localhost:4318","otlpProtocol":"grpc"}}`, false},
+		"http on grpc port":    {`{"telemetry":{"enabled":true,"target":"local","otlpEndpoint":"http://localhost:4317","otlpProtocol":"http"}}`, false},
+		"no endpoint":          {`{"telemetry":{"enabled":true,"target":"local","otlpProtocol":"http"}}`, false},
+		"gcp target":           {`{"telemetry":{"enabled":true,"target":"gcp","otlpEndpoint":"http://localhost:4317"}}`, false},
+		"disabled":             {`{"telemetry":{"enabled":false,"target":"local","otlpEndpoint":"http://localhost:4317"}}`, false},
+		"outfile":              {`{"telemetry":{"enabled":true,"target":"local","otlpEndpoint":"http://localhost:4317","outfile":"t.log"}}`, false},
+		"http signal override": {`{"telemetry":{"enabled":true,"target":"local","otlpEndpoint":"http://localhost:4318","otlpProtocol":"http","otlpTracesEndpoint":"http://x/v1/traces"}}`, false},
+	} {
+		if st := a.Check([]byte(c.in), any); st.Configured != c.configured {
+			t.Errorf("%s: Configured = %v (%s), want %v", name, st.Configured, st.Detail, c.configured)
+		}
+	}
+	grpc := `{"telemetry":{"enabled":true,"target":"local","otlpEndpoint":"http://localhost:4317","otlpProtocol":"grpc"}}`
+	if st := a.Check([]byte(grpc), Options{Endpoint: testOpts.Endpoint, Protocol: "http"}); st.Configured {
+		t.Errorf("Check(grpc config, want http) = configured")
+	}
+}
+
+func TestQwenCRLFInputIsRewrittenWithLF(t *testing.T) {
+	a, _ := Get("qwen")
+	out, err := a.Apply(readFixture(t, "qwen_crlf.json"), testOpts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(out), "\r") {
+		t.Fatalf("output keeps CR bytes:\n%q", out)
+	}
+	if !strings.Contains(string(out), `"theme": "Qwen Dark"`) {
+		t.Fatalf("output lost the existing key:\n%s", out)
+	}
+}
+
+func TestQwenKeepsUnmanagedKeys(t *testing.T) {
+	a, _ := Get("qwen")
+	out, err := a.Apply(readFixture(t, "qwen_existing.json"), testOpts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(out)
+	for _, want := range []string{`"usageStatisticsEnabled": false`, `"selectedType": "openai"`, `"includeSessionId": true`, `"$version": 4`} {
+		if !strings.Contains(s, want) {
+			t.Errorf("output lost %s", want)
+		}
+	}
+	for _, gone := range []string{"outfile", "otlpLogsEndpoint"} {
+		if strings.Contains(s, gone) {
+			t.Errorf("output still contains %s", gone)
 		}
 	}
 }

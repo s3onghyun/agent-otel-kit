@@ -1,6 +1,6 @@
 # OpenTelemetry Collector configuration for agent-otel-kit.
 #
-# Signals from Claude Code, Codex and Gemini CLI arrive over OTLP and leave as:
+# Signals from Claude Code, Codex, Gemini CLI and Qwen Code arrive over OTLP and leave as:
 #   metrics -> Prometheus (scraped from the prometheus exporter on :8889)
 #   logs    -> Loki (native OTLP endpoint)
 #   traces  -> Tempo (OTLP gRPC)
@@ -27,7 +27,7 @@ receivers:
 
 connectors:
   # Builds one tool-call latency histogram from the per-call log events every
-  # agent emits, so tool dashboards work the same for all three agents.
+  # agent emits, so tool dashboards work the same for all agents.
   # The connector emits delta temporality; delta_to_cumulative below fixes that.
   signal_to_metrics:
     logs:
@@ -55,7 +55,8 @@ processors:
 
   # agent.name is the one label every dashboard groups by. It is derived from
   # service.name, which each agent sets itself:
-  #   claude-code -> claude-code, codex_* / codex-* -> codex, gemini-cli -> gemini-cli
+  #   claude-code -> claude-code, codex_* / codex-* -> codex, gemini-cli -> gemini-cli,
+  #   qwen-code -> qwen-code
   # A value set explicitly through OTEL_RESOURCE_ATTRIBUTES=agent.name=... wins.
   transform/agent:
     error_mode: ignore
@@ -65,6 +66,7 @@ processors:
           - set(resource.attributes["agent.name"], "claude-code") where resource.attributes["agent.name"] == nil and resource.attributes["service.name"] == "claude-code"
           - set(resource.attributes["agent.name"], "codex") where resource.attributes["agent.name"] == nil and IsMatch(resource.attributes["service.name"], "^codex")
           - set(resource.attributes["agent.name"], "gemini-cli") where resource.attributes["agent.name"] == nil and resource.attributes["service.name"] == "gemini-cli"
+          - set(resource.attributes["agent.name"], "qwen-code") where resource.attributes["agent.name"] == nil and resource.attributes["service.name"] == "qwen-code"
           - set(resource.attributes["agent.name"], resource.attributes["service.name"]) where resource.attributes["agent.name"] == nil
       - context: datapoint
         statements:
@@ -120,9 +122,9 @@ processors:
           # session.id like Claude Code and Gemini CLI.
           - set(log.attributes["session.id"], log.attributes["conversation.id"]) where log.attributes["session.id"] == nil and log.attributes["conversation.id"] != nil
           # Normalized tool fields: Claude Code and Codex use tool_name,
-          # Gemini CLI uses function_name.
+          # Gemini CLI and Qwen Code (a Gemini CLI fork) use function_name.
           - set(log.attributes["tool.name"], log.attributes["tool_name"]) where log.attributes["tool_name"] != nil and IsMatch(log.attributes["event.name"], "^(tool_result|codex\\.tool_result)$")
-          - set(log.attributes["tool.name"], log.attributes["function_name"]) where log.attributes["function_name"] != nil and log.attributes["event.name"] == "gemini_cli.tool_call"
+          - set(log.attributes["tool.name"], log.attributes["function_name"]) where log.attributes["function_name"] != nil and IsMatch(log.attributes["event.name"], "^(gemini_cli|qwen-code)\\.tool_call$")
           - set(log.attributes["tool.success"], log.attributes["success"]) where log.attributes["tool.name"] != nil and log.attributes["success"] != nil
           # Claude Code model suffix and cost basis, as for metrics above.
           # Claude Code 2.1.325 logs the response model here, which has no
@@ -142,6 +144,8 @@ processors:
   # The agents already redact most of these by default; this is the second
   # line of defence for when someone turns on OTEL_LOG_USER_PROMPTS,
   # OTEL_LOG_TOOL_DETAILS, Gemini's logPrompts (default true) and so on.
+  # Qwen Code sends the model's final answer of a subagent run as result and
+  # execution_summary even with logPrompts off.
   transform/redact:
     error_mode: ignore
     metric_statements:
@@ -164,7 +168,7 @@ processors:
       - context: log
         statements:
           - delete_key(log.attributes, "user.email") where "${env:AGENT_OTEL_KIT_KEEP_EMAIL:-false}" != "true"
-          - delete_matching_keys(log.attributes, "^(prompt|prompt_text|response|response_text|request_text|system_prompt|tool_parameters|tool_input|tool_output|function_args|arguments|output|error|error\\.message|error_message|body|body_ref|file_path|full_command|bash_command|rationale|reasoning|gen_ai\\.input\\.messages|gen_ai\\.output\\.messages|gen_ai\\.system_instructions)$") where "${env:AGENT_OTEL_KIT_CAPTURE_CONTENT:-false}" != "true"
+          - delete_matching_keys(log.attributes, "^(prompt|prompt_text|response|response_text|request_text|system_prompt|tool_parameters|tool_input|tool_output|function_args|arguments|output|error|error\\.message|error_message|body|body_ref|file_path|full_command|bash_command|rationale|reasoning|result|execution_summary|gen_ai\\.input\\.messages|gen_ai\\.output\\.messages|gen_ai\\.system_instructions)$") where "${env:AGENT_OTEL_KIT_CAPTURE_CONTENT:-false}" != "true"
     trace_statements:
       - context: resource
         statements:
@@ -180,7 +184,8 @@ processors:
         statements:
           - delete_matching_keys(spanevent.attributes, "^(content|output|diff|file_path|bash_command|prompt|exception\\.message|exception\\.stacktrace|gen_ai\\.input\\.messages|gen_ai\\.output\\.messages)$") where "${env:AGENT_OTEL_KIT_CAPTURE_CONTENT:-false}" != "true"
 
-  # All three agents export metrics with delta temporality by default.
+  # Claude Code, Codex and Gemini CLI export metrics with delta temporality
+  # by default (Qwen Code: cumulative, which passes through unchanged).
   # Prometheus only understands cumulative counters, so convert here.
   delta_to_cumulative:
     max_stale: 1h

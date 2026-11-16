@@ -152,7 +152,7 @@
                 "plugin": {
                   "kind": "LokiTimeSeriesQuery",
                   "spec": {
-                    "query": "quantile_over_time(0.95, {service_name=~\".+\", agent_name=~\"$agent\"} | event_name=~\"api_request|gemini_cli.api_response\" or (event_name=\"codex.api_request\" and endpoint=~\".*/responses\") | unwrap duration_ms [$__interval]) by (model)"
+                    "query": "quantile_over_time(0.95, {service_name=~\".+\", agent_name=~\"$agent\"} | event_name=~\"api_request|gemini_cli.api_response|qwen-code.api_response\" or (event_name=\"codex.api_request\" and endpoint=~\".*/responses\") | unwrap duration_ms [$__interval]) by (model)"
                   }
                 }
               }
@@ -195,7 +195,7 @@
         "kind": "Panel",
         "spec": {
           "display": {
-            "description": "Lifetime cost and tokens of each session seen in the range. Estimated cost (third-party endpoint, Claude Code default-rate guess) has its own column.",
+            "description": "Lifetime cost and tokens of each session seen in the range. Estimated cost (third-party endpoint, Claude Code default-rate guess) has its own column. Qwen Code sessions are listed only when it adds session.id to metrics (telemetry.metrics.includeSessionId, see README).",
             "name": "Sessions"
           },
           "plugin": {
@@ -321,7 +321,7 @@
                   "kind": "PrometheusTimeSeriesQuery",
                   "spec": {
                     "instant": true,
-                    "query": "sum by (agent_name, session_id) (max_over_time({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total\", agent_name=~\"$agent\", session_id=~\"$session\", type!~\"total|cached_input|cache_write_input|reasoning_output|cache\"}[$__range]))"
+                    "query": "sum by (agent_name, session_id) (max_over_time({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total\", agent_name=~\"$agent\", session_id=~\"$session\", type!~\"total|cached_input|cache_write_input|reasoning_output|cache\"}[$__range]) or max_over_time(qwen_code_token_usage_total{agent_name=~\"$agent\", session_id=~\"$session\", session_id!=\"\", type!~\"cache|thought\"}[$__range]))"
                   }
                 }
               }
@@ -360,7 +360,7 @@
         "kind": "Panel",
         "spec": {
           "display": {
-            "description": "Claude Code and Codex: one trace per prompt (Claude Code needs CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1). Gemini CLI: one trace per model call and per tool batch. Click a trace ID to open it.",
+            "description": "Claude Code, Codex and Qwen Code: one trace per prompt (Claude Code needs CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1). Gemini CLI: one trace per model call and per tool batch. Click a trace ID to open it.",
             "name": "Interactions (traces)"
           },
           "plugin": {
@@ -375,7 +375,7 @@
                   "kind": "TempoTraceQuery",
                   "spec": {
                     "limit": 20,
-                    "query": "{resource.agent.name=~\"$agent\" && trace:rootName=~\"claude_code.interaction|turn/start|llm_call|schedule_tool_calls\"}"
+                    "query": "{resource.agent.name=~\"$agent\" && trace:rootName=~\"claude_code.interaction|turn/start|llm_call|schedule_tool_calls|qwen-code.interaction\"}"
                   }
                 }
               }
@@ -424,7 +424,7 @@
             "spec": {
               "labelName": "session_id",
               "matchers": [
-                "{__name__=~\"claude_code_session_count_total|gemini_cli_session_count_total\", agent_name=~\"$agent\"}"
+                "{__name__=~\"claude_code_session_count_total|gemini_cli_session_count_total|qwen_code_session_count_total\", agent_name=~\"$agent\"}"
               ]
             }
           }
