@@ -75,11 +75,33 @@ processors:
           # Codex labels its token histogram with token_type; the dashboards
           # group tokens by type like Claude Code and Gemini CLI.
           - set(datapoint.attributes["type"], datapoint.attributes["token_type"]) where metric.name == "codex.turn.token_usage" and datapoint.attributes["token_type"] != nil
+          # Claude Code against a third-party (Anthropic-compatible) endpoint:
+          # provider guides write model IDs with a context-window suffix
+          # (deepseek-flash[1m]); Claude Code sends the ID without it but keeps
+          # it in telemetry. Strip it so one model is one series.
+          - replace_pattern(datapoint.attributes["model"], "\\[[0-9]+[kKmM]\\]$", "") where resource.attributes["service.name"] == "claude-code" and datapoint.attributes["model"] != nil
+          # cost.basis says how far to trust claude_code.cost.usage:
+          #   list       priced by Claude Code at Anthropic list price.
+          #   estimated  the request went to ANTHROPIC_BASE_URL or a gateway
+          #              (anthropic.custom_base_url=true): Claude Code priced an
+          #              unknown model ID at its default model's rate, or a
+          #              server-mapped claude-* ID at Claude list price.
+          # A value set on the agent (OTEL_RESOURCE_ATTRIBUTES=cost.basis=managed
+          # after setting modelPricing in managed settings) is kept.
+          - set(datapoint.attributes["cost.basis"], "estimated") where metric.name == "claude_code.cost.usage" and datapoint.attributes["cost.basis"] == nil and datapoint.attributes["anthropic.custom_base_url"] == true
+          - set(datapoint.attributes["cost.basis"], "list") where metric.name == "claude_code.cost.usage" and datapoint.attributes["cost.basis"] == nil
           # signal_to_metrics emits delta points without a start time. Give
           # them one just before the point, so the cumulative series gets a
           # start (created) time and Prometheus can insert its zero sample;
           # otherwise the first increment of every new series is lost.
           - set(datapoint.start_time_unix_nano, datapoint.time_unix_nano - 1000000) where datapoint.start_time_unix_nano == 0
+      - context: metric
+        statements:
+          # One export can hold deepseek-flash[1m] and deepseek-flash points
+          # with the same timestamps (provider guides set OPUS/SONNET with the
+          # suffix, HAIKU without). After the strip they are one series; add
+          # them up here, or delta_to_cumulative drops all but the first.
+          - aggregate_on_attributes("sum") where metric.type == METRIC_DATA_TYPE_SUM and IsMatch(metric.name, "^claude_code\\.")
     log_statements:
       - context: resource
         statements: *agent_resource
@@ -102,9 +124,19 @@ processors:
           - set(log.attributes["tool.name"], log.attributes["tool_name"]) where log.attributes["tool_name"] != nil and IsMatch(log.attributes["event.name"], "^(tool_result|codex\\.tool_result)$")
           - set(log.attributes["tool.name"], log.attributes["function_name"]) where log.attributes["function_name"] != nil and log.attributes["event.name"] == "gemini_cli.tool_call"
           - set(log.attributes["tool.success"], log.attributes["success"]) where log.attributes["tool.name"] != nil and log.attributes["success"] != nil
+          # Claude Code model suffix and cost basis, as for metrics above.
+          # Claude Code 2.1.325 logs the response model here, which has no
+          # suffix; the rule covers versions that log the requested ID.
+          - replace_pattern(log.attributes["model"], "\\[[0-9]+[kKmM]\\]$", "") where resource.attributes["service.name"] == "claude-code" and log.attributes["model"] != nil
+          - set(log.attributes["cost.basis"], "estimated") where resource.attributes["service.name"] == "claude-code" and log.attributes["cost_usd"] != nil and log.attributes["cost.basis"] == nil and log.attributes["anthropic.custom_base_url"] == true
+          - set(log.attributes["cost.basis"], "list") where resource.attributes["service.name"] == "claude-code" and log.attributes["cost_usd"] != nil and log.attributes["cost.basis"] == nil
     trace_statements:
       - context: resource
         statements: *agent_resource
+      - context: span
+        statements:
+          - replace_pattern(span.attributes["model"], "\\[[0-9]+[kKmM]\\]$", "") where resource.attributes["service.name"] == "claude-code" and span.attributes["model"] != nil
+          - replace_pattern(span.attributes["gen_ai.request.model"], "\\[[0-9]+[kKmM]\\]$", "") where resource.attributes["service.name"] == "claude-code" and span.attributes["gen_ai.request.model"] != nil
 
   # Content is never collected unless AGENT_OTEL_KIT_CAPTURE_CONTENT=true.
   # The agents already redact most of these by default; this is the second

@@ -94,7 +94,14 @@ func intervalDelta(sel string) string {
 }
 
 const (
-	costSel = `claude_code_cost_usage_USD_total{agent_name=~"$agent", model=~"$model"}`
+	costSel = `claude_code_cost_usage_USD_total{agent_name=~"$agent", model=~"$model", cost_basis=~"$cost_basis"}`
+	// The collector labels each cost series with cost_basis: list or
+	// managed (exact rates) or estimated (third-party endpoint). The stats
+	// and the per-session table keep estimated cost apart; the per-model
+	// panels show the basis in each series name.
+	costExactSel     = `claude_code_cost_usage_USD_total{agent_name=~"$agent", model=~"$model", cost_basis=~"$cost_basis", cost_basis!="estimated"}`
+	costEstimatedSel = `claude_code_cost_usage_USD_total{agent_name=~"$agent", model=~"$model", cost_basis=~"$cost_basis", cost_basis="estimated"}`
+	costBasisDesc    = "estimated: third-party endpoint, Claude Code default-rate guess. Claude Code sessions sent to ANTHROPIC_BASE_URL or a gateway (anthropic_custom_base_url=true) are still priced at Anthropic rates: an unknown model ID at the default model's rate, a server-mapped claude-* ID at Claude list price. list: Anthropic list price. managed: your own modelPricing rates (see the README). Token counts are exact either way."
 	// Token types that are parts of other types are left out of summed
 	// totals (tokenSel) so the sums are exact; per-type breakdowns
 	// (tokenAllSel) show every type. Claude Code reports disjoint types (cacheRead is not part
@@ -122,40 +129,44 @@ func dashboards() []dashboard {
 	costTokens := dashboard{
 		uid:   "agent-cost-tokens",
 		title: "Agent cost and tokens",
-		desc:  "Cost and token usage per coding agent and model. Cost is reported by Claude Code only.",
+		desc:  "Cost and token usage per coding agent and model. Cost is reported by Claude Code only; cost of sessions on third-party endpoints is an estimate and shown apart.",
 		tags:  []string{"agent-otel-kit"},
 		vars: []variable{
 			agentVar,
 			{name: "model", label: "Model", labelName: "model", matcher: `{agent_name=~"$agent", model!=""}`},
+			{name: "cost_basis", label: "Cost basis", labelName: "cost_basis", matcher: `claude_code_cost_usage_USD_total{agent_name=~"$agent"}`},
 		},
 		panels: []panel{
-			{id: "cost_total", title: "Cost (USD)", desc: "Cost reported by Claude Code (claude_code.cost.usage) in the selected range. Codex and Gemini CLI do not export cost.",
-				kind: stat, unit: "currencyUSD", decimals: 4, x: 0, y: 0, w: 6, h: 4,
-				queries: []query{{ds: prom, expr: "sum(" + rangeTotal(costSel) + ")", instant: true}}},
+			{id: "cost_total", title: "Cost (USD)", desc: "Cost reported by Claude Code (claude_code.cost.usage) in the selected range at list price or your managed modelPricing rates. Estimated cost is not included. Codex and Gemini CLI do not export cost.",
+				kind: stat, unit: "currencyUSD", decimals: 4, x: 0, y: 0, w: 5, h: 4,
+				queries: []query{{ds: prom, expr: "sum(" + rangeTotal(costExactSel) + ") or vector(0)", instant: true}}},
+			{id: "cost_estimated_total", title: "Estimated cost (USD)", desc: costBasisDesc,
+				kind: stat, unit: "currencyUSD", decimals: 4, x: 5, y: 0, w: 5, h: 4,
+				queries: []query{{ds: prom, expr: "sum(" + rangeTotal(costEstimatedSel) + ") or vector(0)", instant: true}}},
 			{id: "tokens_total", title: "Tokens", desc: "All tokens in the selected range. Cached input that Codex and Gemini CLI count inside input is not added again.",
-				kind: stat, unit: "short", x: 6, y: 0, w: 6, h: 4,
+				kind: stat, unit: "short", x: 10, y: 0, w: 5, h: 4,
 				queries: []query{{ds: prom, expr: "sum(" + rangeTotal(tokenSel) + ")", instant: true}}},
 			{id: "sessions_total", title: "Sessions", desc: "Sessions started in the selected range (Claude Code and Gemini CLI sessions, Codex threads).",
-				kind: stat, unit: "short", x: 12, y: 0, w: 6, h: 4,
+				kind: stat, unit: "short", x: 15, y: 0, w: 5, h: 4,
 				queries: []query{{ds: prom, expr: "sum(" + rangeTotal(sessionSel) + ")", instant: true}}},
 			{id: "active_time", title: "Active time", desc: "claude_code.active_time.total: time the user and the CLI were active.",
-				kind: stat, unit: "s", x: 18, y: 0, w: 6, h: 4,
+				kind: stat, unit: "s", x: 20, y: 0, w: 4, h: 4,
 				queries: []query{{ds: prom, expr: "sum(" + rangeTotal(`claude_code_active_time_seconds_total{agent_name=~"$agent"}`) + ")", instant: true}}},
 
-			{id: "cost_rate", title: "Cost per interval by model", kind: timeseries, unit: "currencyUSD", decimals: 4, stacked: true, x: 0, y: 4, w: 12, h: 9,
-				queries: []query{{ds: prom, expr: `sum by (agent_name, model) (` + intervalDelta(costSel) + `)`, legend: "{{agent_name}} {{model}}"}}},
+			{id: "cost_rate", title: "Cost per interval by model", desc: costBasisDesc, kind: timeseries, unit: "currencyUSD", decimals: 4, stacked: true, x: 0, y: 4, w: 12, h: 9,
+				queries: []query{{ds: prom, expr: `sum by (agent_name, model, cost_basis) (` + intervalDelta(costSel) + `)`, legend: "{{agent_name}} {{model}} ({{cost_basis}})"}}},
 			{id: "token_rate", title: "Tokens per interval by type", desc: tokenTypeDesc, kind: timeseries, unit: "short", stacked: true, x: 12, y: 4, w: 12, h: 9,
 				queries: []query{{ds: prom, expr: `sum by (agent_name, type) (` + intervalDelta(tokenAllSel) + `)`, legend: "{{agent_name}} {{type}}"}}},
 
-			{id: "cost_by_model", title: "Cost by model", kind: bars, unit: "currencyUSD", decimals: 4, x: 0, y: 13, w: 12, h: 8,
-				queries: []query{{ds: prom, expr: `sort_desc(sum by (agent_name, model) (` + rangeTotal(costSel) + `))`, legend: "{{agent_name}} {{model}}", instant: true}}},
+			{id: "cost_by_model", title: "Cost by model", desc: costBasisDesc, kind: bars, unit: "currencyUSD", decimals: 4, x: 0, y: 13, w: 12, h: 8,
+				queries: []query{{ds: prom, expr: `sort_desc(sum by (agent_name, model, cost_basis) (` + rangeTotal(costSel) + `))`, legend: "{{agent_name}} {{model}} ({{cost_basis}})", instant: true}}},
 			{id: "tokens_by_model", title: "Tokens by agent, model and type", desc: tokenTypeDesc, kind: table, x: 12, y: 13, w: 12, h: 8,
 				queries: []query{{ds: prom, expr: `sort_desc(sum by (agent_name, model, type) (` + rangeTotal(tokenAllSel) + `))`, instant: true}},
 				columns: []column{{"agent_name", "Agent", ""}, {"model", "Model", ""}, {"type", "Type", ""}, {"value", "Tokens", "short"}}},
 
-			{id: "top_sessions", title: "Most expensive sessions", kind: table, x: 0, y: 21, w: 24, h: 8,
-				queries: []query{{ds: prom, expr: `topk(10, sum by (agent_name, session_id, model) (` + rangeTotal(costSel) + `))`, instant: true}},
-				columns: []column{{"session_id", "Session", ""}, {"agent_name", "Agent", ""}, {"model", "Model", ""}, {"value", "Cost (USD)", "currencyUSD"}}},
+			{id: "top_sessions", title: "Most expensive sessions", desc: costBasisDesc, kind: table, x: 0, y: 21, w: 24, h: 8,
+				queries: []query{{ds: prom, expr: `topk(10, sum by (agent_name, session_id, model, cost_basis) (` + rangeTotal(costSel) + `))`, instant: true}},
+				columns: []column{{"session_id", "Session", ""}, {"agent_name", "Agent", ""}, {"model", "Model", ""}, {"cost_basis", "Cost basis", ""}, {"value", "Cost (USD)", "currencyUSD"}}},
 		},
 	}
 
@@ -215,15 +226,16 @@ func dashboards() []dashboard {
 			{name: "trace", label: "Trace ID", text: true},
 		},
 		panels: []panel{
-			{id: "sessions", title: "Sessions", desc: "Lifetime cost and tokens of each session seen in the range.", kind: table, x: 0, y: 0, w: 10, h: 10,
+			{id: "sessions", title: "Sessions", desc: "Lifetime cost and tokens of each session seen in the range. Estimated cost (third-party endpoint, Claude Code default-rate guess) has its own column.", kind: table, x: 0, y: 0, w: 12, h: 10,
 				queries: []query{
-					{ds: prom, expr: `sort_desc(sum by (agent_name, session_id) (max_over_time(claude_code_cost_usage_USD_total{agent_name=~"$agent", session_id=~"$session"}[$__range])))`, instant: true},
+					{ds: prom, expr: `sort_desc(sum by (agent_name, session_id) (max_over_time(claude_code_cost_usage_USD_total{agent_name=~"$agent", session_id=~"$session", cost_basis!="estimated"}[$__range])))`, instant: true},
+					{ds: prom, expr: `sum by (agent_name, session_id) (max_over_time(claude_code_cost_usage_USD_total{agent_name=~"$agent", session_id=~"$session", cost_basis="estimated"}[$__range]))`, instant: true},
 					{ds: prom, expr: `sum by (agent_name, session_id) (max_over_time({__name__=~"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total", agent_name=~"$agent", session_id=~"$session", ` + tokenOverlap + `}[$__range]))`, instant: true},
 				},
 				joinOn:  []string{"agent_name", "session_id"},
-				columns: []column{{"session_id", "Session", ""}, {"agent_name", "Agent", ""}, {"value #1", "Cost (USD)", "currencyUSD"}, {"value #2", "Tokens", "short"}}},
+				columns: []column{{"session_id", "Session", ""}, {"agent_name", "Agent", ""}, {"value #1", "Cost (USD)", "currencyUSD"}, {"value #2", "Estimated (USD)", "currencyUSD"}, {"value #3", "Tokens", "short"}}},
 			{id: "traces", title: "Interactions (traces)", desc: "Claude Code and Codex: one trace per prompt (Claude Code needs CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1). Gemini CLI: one trace per model call and per tool batch. Click a trace ID to open it.",
-				kind: traceTable, x: 10, y: 0, w: 14, h: 10,
+				kind: traceTable, x: 12, y: 0, w: 12, h: 10,
 				queries: []query{{ds: tempo, expr: `{resource.agent.name=~"$agent" && trace:rootName=~"` + traceRoots + `"}`}}},
 			{id: "trace_view", title: "Trace", desc: "Paste a trace ID into the Trace ID box above.", kind: traceView, x: 0, y: 10, w: 24, h: 16,
 				queries: []query{{ds: tempo, expr: "$trace"}}},
@@ -234,7 +246,7 @@ func dashboards() []dashboard {
 				queries: []query{{ds: loki, expr: `sum by (event_name) (count_over_time({service_name=~".+", agent_name=~"$agent"} [$__auto]))`, legend: "{{event_name}}"}}},
 
 			{id: "session_events", title: "Session events", desc: "Prompt, response and tool content are not collected by default.", kind: logs, x: 0, y: 34, w: 24, h: 10,
-				queries: []query{{ds: loki, expr: `{service_name=~".+", agent_name=~"$agent"} | session_id=~"$session" | line_format "{{.event_name}}{{if .tool_name}}  tool={{.tool_name}}{{end}}{{if .tool_success}} success={{.tool_success}}{{end}}{{if and .tool_name .duration_ms}} {{.duration_ms}}ms{{end}}{{if .model}}  model={{.model}}{{end}}{{if .cost_usd}}  cost_usd={{.cost_usd}}{{end}}{{if .input_tokens}}  tokens in/out={{.input_tokens}}/{{.output_tokens}}{{end}}"`}}},
+				queries: []query{{ds: loki, expr: `{service_name=~".+", agent_name=~"$agent"} | session_id=~"$session" | line_format "{{.event_name}}{{if .tool_name}}  tool={{.tool_name}}{{end}}{{if .tool_success}} success={{.tool_success}}{{end}}{{if and .tool_name .duration_ms}} {{.duration_ms}}ms{{end}}{{if .model}}  model={{.model}}{{end}}{{if .cost_usd}}  cost_usd={{.cost_usd}}{{if .cost_basis}} ({{.cost_basis}}){{end}}{{end}}{{if .input_tokens}}  tokens in/out={{.input_tokens}}/{{.output_tokens}}{{end}}"`}}},
 		},
 	}
 	return []dashboard{costTokens, tools, sessions}

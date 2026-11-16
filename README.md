@@ -79,7 +79,7 @@ Two related Prometheus settings in `compose.yaml`: `created-timestamp-zero-inges
 
 All three exist in Grafana (`grafana/dashboards/`) and Perses (`perses/provisioning/dashboards/`). Both are generated from one panel list in `tools/gendashboards` (`make dashboards`); CI fails if the committed JSON differs.
 
-**Agent cost and tokens**: cost, tokens, sessions and active time for the range; cost per interval by model; tokens per interval by type; cost by model; tokens by agent, model and type; the most expensive sessions.
+**Agent cost and tokens**: cost, estimated cost (see [third-party endpoints](#claude-code-with-third-party-anthropic-compatible-endpoints)), tokens, sessions and active time for the range; cost per interval by model; tokens per interval by type; cost by model; tokens by agent, model and type; the most expensive sessions. The Cost basis selector filters cost by `cost_basis`.
 
 ![Grafana: agent cost and tokens](docs/screenshots/grafana-cost-tokens.png)
 
@@ -107,6 +107,51 @@ Event names seen in Loki: Claude Code `tool_result`, `tool_decision`, `api_reque
 
 The screenshots were taken from this stack with real sessions run on the author's machine: Claude Code (`make demo`), `codex exec` and `gemini -p`, then `make screenshots`. The demo GIF at the top is a headless Chromium recording of the same dashboards during one such run, only trimmed and sped up; `docs/demo.mp4` is its source.
 
+## Claude Code with third-party (Anthropic-compatible) endpoints
+
+DeepSeek, Z.ai (GLM), Moonshot (Kimi), MiniMax and Alibaba Model Studio publish guides for running Claude Code against their Anthropic-compatible APIs through `ANTHROPIC_BASE_URL`. Claude Code then exports the same telemetry as usual, and the kit receives it without changes. What the dashboards show, measured with Claude Code 2.1.325 against a local mock of such an endpoint (not yet against the providers themselves):
+
+- Token counts are exact: they are the usage numbers the endpoint returns.
+- Cost is not. Claude Code computes cost locally at Anthropic rates. A model ID it does not know (`deepseek-chat`, `glm-4.6`) is priced at the rate of its default model ($4 input, $20 output, $0.20 cache read per million tokens in 2.1.325). When the provider maps Claude model IDs on its side (Claude Code sends `claude-opus-5-5`, the provider runs its own model), the metrics say `claude-opus-5-5` at Claude list price. The model that answered appears only in the `api_request` event's `model`, and only if the provider returns its real name.
+- Every metric, event and span of such a session carries `anthropic.custom_base_url=true` (Prometheus label `anthropic_custom_base_url`). The kit keeps it.
+
+What the collector does with it:
+
+- It labels each Claude Code cost series and `api_request` event with `cost_basis`: `estimated` when `anthropic.custom_base_url` is true, otherwise `list`. A `cost.basis` you set on the agent yourself is kept (see below). The cost dashboard shows **Cost (USD)** (list and managed) and **Estimated cost (USD)** as separate numbers, and names the basis in every cost series and in the session tables.
+- It strips a context-window suffix such as `[1m]` from `model` on Claude Code metrics, events and spans. The provider guides write model IDs as `deepseek-flash[1m]`; Claude Code sends `deepseek-flash` to the API but keeps the suffix in its telemetry, which would split one model into two series. Claude Code's own `[1m]` model IDs are merged the same way.
+
+### Exact cost: `modelPricing` in managed settings
+
+Claude Code (v2.1.242 or later) prices models from a `modelPricing.overrides` table, and applies it to the OpenTelemetry cost metric and events too. It reads the table only from managed settings, which need root or administrator rights:
+
+- Linux: `/etc/claude-code/managed-settings.json`
+- macOS: `/Library/Application Support/ClaudeCode/managed-settings.json`
+
+```
+{
+  "modelPricing": {
+    "overrides": {
+      "deepseek-flash": { "input": INPUT, "output": OUTPUT, "cacheRead": CACHE_READ, "cacheWrite": CACHE_WRITE },
+      "claude-opus-5-5": { "input": INPUT, "output": OUTPUT, "cacheRead": CACHE_READ, "cacheWrite": CACHE_WRITE }
+    }
+  }
+}
+```
+
+Replace each placeholder with the provider's current rate in USD per million tokens: [DeepSeek](https://api-docs.deepseek.com/quick_start/pricing), [Z.ai](https://docs.z.ai/guides/overview/pricing), [Moonshot](https://platform.kimi.ai/docs/pricing/chat), [MiniMax](https://platform.minimax.io/docs/pricing/overview), [Alibaba Model Studio](https://www.alibabacloud.com/help/en/model-studio/model-pricing). Use the model ID without the suffix as the key: `deepseek-flash` also prices `deepseek-flash[1m]`. With server-side mapping, key the Claude model ID Claude Code sends (`claude-opus-5-5` above) and give it the rates of the provider model it maps to. If the file already exists, add the `modelPricing` key to it. Reference: [Claude Code settings, `modelPricing`](https://code.claude.com/docs/en/settings-reference#modelpricing).
+
+agent-otel-kit never writes this file; `setup` edits only `~/.claude/settings.json`.
+
+The collector cannot see that a pricing table is in effect, so tell it: add `cost.basis=managed` to `OTEL_RESOURCE_ATTRIBUTES` in the `env` of `~/.claude/settings.json`. Claude Code copies resource attributes onto every metric and event, and the dashboards then count that cost as exact. Set `cost.basis=list` instead for a gateway in front of Anthropic itself, whose cost is Anthropic list price.
+
+### Which provider
+
+`anthropic.custom_base_url` does not say which provider a session used, and with server-side mapping the model name does not either. Tag it on the agent, for example `"OTEL_RESOURCE_ATTRIBUTES": "llm.provider=deepseek,cost.basis=managed"`; every Claude Code series then carries an `llm_provider` label.
+
+### Subscription plans
+
+On a flat-rate coding plan (GLM Coding Plan, Kimi membership, MiniMax and Alibaba coding plans) a per-token dollar figure means nothing: you pay for a quota, not per token. Look at the token panels, which are exact, and ignore the cost panels or set the Cost basis selector to `list`.
+
 ## Perses
 
 ```sh
@@ -125,7 +170,7 @@ Perses starts on <http://localhost:8080> with the project `agent-otel-kit`, glob
 - Metrics arrive late: Claude Code exports metrics every 60 s unless `OTEL_METRIC_EXPORT_INTERVAL` is set (setup sets 10 s); events and spans export every 5 s.
 - No traces from Claude Code: the traces beta needs `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1` and `OTEL_TRACES_EXPORTER=otlp`.
 - To see raw data, start with `make up-debug` and run `docker compose logs -f otel-collector`.
-- `make test-collector` runs the collector config against payloads recorded from Codex and Gemini CLI (in `collector/testdata/`) and checks the normalization, the tool histogram and the redaction.
+- `make test-collector` runs the collector config against payloads recorded from Codex, Gemini CLI and Claude Code (in `collector/testdata/`) and checks the normalization, the tool histogram, the redaction, and the Claude Code model suffix and cost basis.
 - Restarting the collector resets its delta-to-cumulative state; the dashboards treat that as a counter reset.
 - Memory limits: collector, Prometheus, Loki and Tempo 512 MiB each, Grafana 384 MiB, Perses 256 MiB.
 - `make clean` stops the stack and deletes its volumes.
@@ -233,7 +278,7 @@ Claude Code, Codex, Gemini CLI는 기본적으로 카운터를 delta temporality
 
 세 대시보드 모두 Grafana(`grafana/dashboards/`)와 Perses(`perses/provisioning/dashboards/`)에 있습니다. 둘 다 `tools/gendashboards`의 패널 목록 하나에서 생성하며(`make dashboards`), 커밋된 JSON이 다르면 CI가 실패합니다.
 
-**Agent cost and tokens**: 기간 내 비용, 토큰, 세션, 활동 시간; 모델별 구간 비용; 유형별 구간 토큰; 모델별 비용; 에이전트·모델·유형별 토큰; 비용이 큰 세션.
+**Agent cost and tokens**: 기간 내 비용, 추정 비용(아래 "서드파티 엔드포인트" 절), 토큰, 세션, 활동 시간; 모델별 구간 비용; 유형별 구간 토큰; 모델별 비용; 에이전트·모델·유형별 토큰; 비용이 큰 세션. Cost basis 선택기로 `cost_basis`별 비용만 볼 수 있습니다.
 
 **Agent tool calls**: 호출 수, 실패 수, 성공률, p95 소요 시간; 도구별 구간 호출 수와 p95; 도구별 표; 권한 결정(누가 호출을 허용했는지); Loki의 실패 호출 목록. 도구 메트릭 `agent_otel_kit.tool.duration`은 collector의 `signal_to_metrics` connector가 각 에이전트의 도구 결과 이벤트로 만들어서 에이전트마다 같은 형태입니다.
 
@@ -255,6 +300,51 @@ Loki에서 본 이벤트 이름: Claude Code `tool_result`, `tool_decision`, `ap
 
 스크린샷은 작성자 컴퓨터에서 실제 세션을 돌린 이 스택에서 찍었습니다: Claude Code(`make demo`), `codex exec`, `gemini -p`, 그다음 `make screenshots`. 맨 위 데모 GIF는 그런 실행 한 번 동안 같은 대시보드를 headless Chromium으로 녹화한 것으로, 자르기와 배속만 했습니다. 원본은 `docs/demo.mp4`입니다.
 
+### 서드파티(Anthropic 호환) 엔드포인트로 Claude Code 쓰기
+
+DeepSeek, Z.ai(GLM), Moonshot(Kimi), MiniMax, Alibaba Model Studio는 `ANTHROPIC_BASE_URL`로 자기 Anthropic 호환 API에 Claude Code를 붙이는 가이드를 냅니다. 이때도 Claude Code는 평소와 같은 텔레메트리를 보내고, kit은 그대로 받습니다. 대시보드에 보이는 것(Claude Code 2.1.325와 로컬 mock 엔드포인트로 측정, 실제 provider로는 아직 확인하지 않음):
+
+- 토큰 수는 정확합니다. 엔드포인트가 돌려준 usage 숫자 그대로입니다.
+- 비용은 아닙니다. Claude Code는 비용을 Anthropic 단가로 직접 계산합니다. 모르는 모델 ID(`deepseek-chat`, `glm-4.6`)에는 기본 모델 단가를 씁니다(2.1.325 기준 100만 토큰당 input $4, output $20, cache read $0.20). provider가 Claude 모델 ID를 자기 쪽에서 바꿔 주는 경우(Claude Code는 `claude-opus-5-5`를 보내고 provider는 자기 모델로 처리) 메트릭에는 Claude list 가격의 `claude-opus-5-5`로 찍힙니다. 실제로 응답한 모델은 `api_request` 이벤트의 `model`에만 남고, 그것도 provider가 실제 이름을 돌려줄 때만입니다.
+- 이런 세션의 모든 메트릭, 이벤트, span에는 `anthropic.custom_base_url=true`(Prometheus 레이블 `anthropic_custom_base_url`)가 붙습니다. kit은 이 값을 그대로 둡니다.
+
+collector가 하는 일:
+
+- Claude Code 비용 시계열과 `api_request` 이벤트에 `cost_basis`를 붙입니다. `anthropic.custom_base_url`이 true면 `estimated`, 아니면 `list`입니다. 에이전트에 직접 설정한 `cost.basis`는 그대로 둡니다(아래 참고). 비용 대시보드는 **Cost (USD)**(list와 managed)와 **Estimated cost (USD)**를 따로 보여 주고, 모든 비용 시계열 이름과 세션 표에 basis를 표시합니다.
+- Claude Code 메트릭, 이벤트, span의 `model`에서 `[1m]` 같은 컨텍스트 창 suffix를 뗍니다. provider 가이드는 모델 ID를 `deepseek-flash[1m]`처럼 쓰는데, Claude Code는 API에는 `deepseek-flash`로 보내면서 텔레메트리에는 suffix를 남겨 한 모델이 시계열 두 개로 갈라지기 때문입니다. Claude Code 자체의 `[1m]` 모델 ID도 같은 방식으로 합쳐집니다.
+
+#### 정확한 비용: managed 설정의 `modelPricing`
+
+Claude Code(v2.1.242 이상)는 `modelPricing.overrides` 표로 모델 단가를 정하고, OpenTelemetry 비용 메트릭과 이벤트에도 적용합니다. 이 표는 managed 설정에서만 읽으며, root 또는 관리자 권한이 필요합니다.
+
+- Linux: `/etc/claude-code/managed-settings.json`
+- macOS: `/Library/Application Support/ClaudeCode/managed-settings.json`
+
+```
+{
+  "modelPricing": {
+    "overrides": {
+      "deepseek-flash": { "input": INPUT, "output": OUTPUT, "cacheRead": CACHE_READ, "cacheWrite": CACHE_WRITE },
+      "claude-opus-5-5": { "input": INPUT, "output": OUTPUT, "cacheRead": CACHE_READ, "cacheWrite": CACHE_WRITE }
+    }
+  }
+}
+```
+
+자리표시자마다 provider의 현재 단가(100만 토큰당 USD)를 넣습니다: [DeepSeek](https://api-docs.deepseek.com/quick_start/pricing), [Z.ai](https://docs.z.ai/guides/overview/pricing), [Moonshot](https://platform.kimi.ai/docs/pricing/chat), [MiniMax](https://platform.minimax.io/docs/pricing/overview), [Alibaba Model Studio](https://www.alibabacloud.com/help/en/model-studio/model-pricing). 키는 suffix 없는 모델 ID로 씁니다. `deepseek-flash`는 `deepseek-flash[1m]`에도 적용됩니다. 서버 측 매핑이면 Claude Code가 보내는 Claude 모델 ID(위의 `claude-opus-5-5`)를 키로 쓰고, 그 ID가 매핑되는 provider 모델의 단가를 넣습니다. 파일이 이미 있으면 `modelPricing` 키만 추가합니다. 참고: [Claude Code 설정, `modelPricing`](https://code.claude.com/docs/en/settings-reference#modelpricing).
+
+agent-otel-kit은 이 파일을 쓰지 않습니다. `setup`은 `~/.claude/settings.json`만 고칩니다.
+
+collector는 단가 표가 적용됐는지 알 수 없으므로 직접 알려 줍니다. `~/.claude/settings.json`의 `env`에 있는 `OTEL_RESOURCE_ATTRIBUTES`에 `cost.basis=managed`를 넣으면, Claude Code가 resource 속성을 모든 메트릭과 이벤트에 복사하고 대시보드는 그 비용을 정확한 값으로 셉니다. Anthropic 앞에 둔 게이트웨이처럼 비용이 Anthropic list 가격 그대로인 경우에는 `cost.basis=list`를 넣습니다.
+
+#### provider 구분
+
+`anthropic.custom_base_url`만으로는 어느 provider를 썼는지 알 수 없고, 서버 측 매핑이면 모델 이름으로도 알 수 없습니다. 에이전트에 태그를 붙입니다. 예: `"OTEL_RESOURCE_ATTRIBUTES": "llm.provider=deepseek,cost.basis=managed"`. 그러면 Claude Code의 모든 시계열에 `llm_provider` 레이블이 붙습니다.
+
+#### 구독 플랜
+
+정액 코딩 플랜(GLM Coding Plan, Kimi 멤버십, MiniMax·Alibaba 코딩 플랜)에서는 토큰당 달러 금액이 의미가 없습니다. 토큰 단위가 아니라 사용량 한도에 돈을 내기 때문입니다. 정확한 토큰 패널을 보고, 비용 패널은 무시하거나 Cost basis 선택기를 `list`로 둡니다.
+
 ### Perses
 
 ```sh
@@ -271,7 +361,7 @@ Perses가 <http://localhost:8080>에서 `agent-otel-kit` 프로젝트, Prometheu
 - 메트릭이 늦게 들어올 때: Claude Code는 `OTEL_METRIC_EXPORT_INTERVAL`이 없으면 60초마다 메트릭을 보냅니다(setup은 10초로 설정). 이벤트와 span은 5초마다 보냅니다.
 - Claude Code 트레이스가 없을 때: 트레이스 베타는 `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`과 `OTEL_TRACES_EXPORTER=otlp`가 필요합니다.
 - 원본 데이터를 보려면 `make up-debug`로 띄우고 `docker compose logs -f otel-collector`를 봅니다.
-- `make test-collector`는 Codex와 Gemini CLI에서 기록한 payload(`collector/testdata/`)로 collector 설정을 돌려 정규화, 도구 히스토그램, 가림 처리를 확인합니다.
+- `make test-collector`는 Codex, Gemini CLI, Claude Code에서 기록한 payload(`collector/testdata/`)로 collector 설정을 돌려 정규화, 도구 히스토그램, 가림 처리, Claude Code 모델 suffix와 cost basis를 확인합니다.
 - collector를 재시작하면 delta→cumulative 상태가 초기화되고, 대시보드는 이를 카운터 리셋으로 처리합니다.
 - 메모리 상한: collector, Prometheus, Loki, Tempo 각 512 MiB, Grafana 384 MiB, Perses 256 MiB.
 - `make clean`은 스택을 멈추고 볼륨을 지웁니다.

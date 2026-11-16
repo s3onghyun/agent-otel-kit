@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Cost and token usage per coding agent and model. Cost is reported by Claude Code only.",
+  "description": "Cost and token usage per coding agent and model. Cost is reported by Claude Code only; cost of sessions on third-party endpoints is an estimate and shown apart.",
   "editable": true,
   "graphTooltip": 1,
   "links": [
@@ -23,7 +23,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Cost reported by Claude Code (claude_code.cost.usage) in the selected range. Codex and Gemini CLI do not export cost.",
+      "description": "Cost reported by Claude Code (claude_code.cost.usage) in the selected range at list price or your managed modelPricing rates. Estimated cost is not included. Codex and Gemini CLI do not export cost.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -37,7 +37,7 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
+        "w": 5,
         "x": 0,
         "y": 0
       },
@@ -61,7 +61,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored))",
+          "expr": "sum(increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\", cost_basis=~\"$cost_basis\", cost_basis!=\"estimated\"}[$__range] anchored)) or vector(0)",
           "instant": true,
           "legendFormat": "",
           "range": false,
@@ -69,6 +69,59 @@
         }
       ],
       "title": "Cost (USD)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "estimated: third-party endpoint, Claude Code default-rate guess. Claude Code sessions sent to ANTHROPIC_BASE_URL or a gateway (anthropic_custom_base_url=true) are still priced at Anthropic rates: an unknown model ID at the default model's rate, a server-mapped claude-* ID at Claude list price. list: Anthropic list price. managed: your own modelPricing rates (see the README). Token counts are exact either way.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "text",
+            "mode": "fixed"
+          },
+          "decimals": 4,
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 5,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\", cost_basis=~\"$cost_basis\", cost_basis=\"estimated\"}[$__range] anchored)) or vector(0)",
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Estimated cost (USD)",
       "type": "stat"
     },
     {
@@ -89,11 +142,11 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 6,
+        "w": 5,
+        "x": 10,
         "y": 0
       },
-      "id": 2,
+      "id": 3,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -141,11 +194,11 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 12,
+        "w": 5,
+        "x": 15,
         "y": 0
       },
-      "id": 3,
+      "id": 4,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -193,11 +246,11 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 18,
+        "w": 4,
+        "x": 20,
         "y": 0
       },
-      "id": 4,
+      "id": 5,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -232,7 +285,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "estimated: third-party endpoint, Claude Code default-rate guess. Claude Code sessions sent to ANTHROPIC_BASE_URL or a gateway (anthropic_custom_base_url=true) are still priced at Anthropic rates: an unknown model ID at the default model's rate, a server-mapped claude-* ID at Claude list price. list: Anthropic list price. managed: your own modelPricing rates (see the README). Token counts are exact either way.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -257,7 +310,7 @@
         "x": 0,
         "y": 4
       },
-      "id": 5,
+      "id": 6,
       "interval": "1m",
       "options": {
         "legend": {
@@ -279,8 +332,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (agent_name, model) (increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\"}[$__interval] anchored))",
-          "legendFormat": "{{agent_name}} {{model}}",
+          "expr": "sum by (agent_name, model, cost_basis) (increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\", cost_basis=~\"$cost_basis\"}[$__interval] anchored))",
+          "legendFormat": "{{agent_name}} {{model}} ({{cost_basis}})",
           "range": true,
           "refId": "A"
         }
@@ -317,7 +370,7 @@
         "x": 12,
         "y": 4
       },
-      "id": 6,
+      "id": 7,
       "interval": "1m",
       "options": {
         "legend": {
@@ -353,7 +406,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "estimated: third-party endpoint, Claude Code default-rate guess. Claude Code sessions sent to ANTHROPIC_BASE_URL or a gateway (anthropic_custom_base_url=true) are still priced at Anthropic rates: an unknown model ID at the default model's rate, a server-mapped claude-* ID at Claude list price. list: Anthropic list price. managed: your own modelPricing rates (see the README). Token counts are exact either way.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -370,7 +423,7 @@
         "x": 0,
         "y": 13
       },
-      "id": 7,
+      "id": 8,
       "options": {
         "displayMode": "basic",
         "maxVizHeight": 36,
@@ -398,9 +451,9 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sort_desc(sum by (agent_name, model) (increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored)))",
+          "expr": "sort_desc(sum by (agent_name, model, cost_basis) (increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\", cost_basis=~\"$cost_basis\"}[$__range] anchored)))",
           "instant": true,
-          "legendFormat": "{{agent_name}} {{model}}",
+          "legendFormat": "{{agent_name}} {{model}} ({{cost_basis}})",
           "range": false,
           "refId": "A"
         }
@@ -437,7 +490,7 @@
         "x": 12,
         "y": 13
       },
-      "id": 8,
+      "id": 9,
       "options": {
         "cellHeight": "sm",
         "showHeader": true
@@ -502,7 +555,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "estimated: third-party endpoint, Claude Code default-rate guess. Claude Code sessions sent to ANTHROPIC_BASE_URL or a gateway (anthropic_custom_base_url=true) are still priced at Anthropic rates: an unknown model ID at the default model's rate, a server-mapped claude-* ID at Claude list price. list: Anthropic list price. managed: your own modelPricing rates (see the README). Token counts are exact either way.",
       "fieldConfig": {
         "defaults": {},
         "overrides": [
@@ -530,7 +583,7 @@
         "x": 0,
         "y": 21
       },
-      "id": 9,
+      "id": 10,
       "options": {
         "cellHeight": "sm",
         "showHeader": true
@@ -541,7 +594,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "topk(10, sum by (agent_name, session_id, model) (increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored)))",
+          "expr": "topk(10, sum by (agent_name, session_id, model, cost_basis) (increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\", cost_basis=~\"$cost_basis\"}[$__range] anchored)))",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -561,14 +614,16 @@
               "job": true
             },
             "indexByName": {
-              "Value": 3,
+              "Value": 4,
               "agent_name": 1,
+              "cost_basis": 3,
               "model": 2,
               "session_id": 0
             },
             "renameByName": {
               "Value": "Cost (USD)",
               "agent_name": "Agent",
+              "cost_basis": "Cost basis",
               "model": "Model",
               "session_id": "Session"
             }
@@ -581,6 +636,7 @@
               "names": [
                 "Value",
                 "agent_name",
+                "cost_basis",
                 "model",
                 "session_id"
               ]
@@ -648,6 +704,34 @@
         "query": {
           "qryType": 1,
           "query": "label_values({agent_name=~\"$agent\", model!=\"\"}, model)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(claude_code_cost_usage_USD_total{agent_name=~\"$agent\"}, cost_basis)",
+        "includeAll": true,
+        "label": "Cost basis",
+        "multi": true,
+        "name": "cost_basis",
+        "query": {
+          "qryType": 1,
+          "query": "label_values(claude_code_cost_usage_USD_total{agent_name=~\"$agent\"}, cost_basis)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,
