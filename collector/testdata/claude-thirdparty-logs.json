@@ -1,0 +1,222 @@
+{
+ "resourceLogs": [
+  {
+   "resource": {
+    "attributes": [
+     {"key": "host.arch", "value": {"stringValue": "amd64"}},
+     {"key": "os.type", "value": {"stringValue": "linux"}},
+     {"key": "os.version", "value": {"stringValue": "6.8.0-generic"}},
+     {"key": "service.name", "value": {"stringValue": "claude-code"}},
+     {"key": "service.version", "value": {"stringValue": "2.1.325"}}
+    ]
+   },
+   "scopeLogs": [
+    {
+     "scope": {
+      "name": "com.anthropic.claude_code.events",
+      "version": "2.1.325"
+     },
+     "logRecords": [
+      {
+       "timeUnixNano": "1794844305270000000",
+       "observedTimeUnixNano": "1794844305270000000",
+       "body": {"stringValue": "claude_code.api_request"},
+       "attributes": [
+        {"key": "user.id", "value": {"stringValue": "0000000000000000000000000000000000000000000000000000000000000000"}},
+        {"key": "session.id", "value": {"stringValue": "00000000-0000-4000-8000-000000000001"}},
+        {"key": "anthropic.provider", "value": {"stringValue": "firstParty"}},
+        {"key": "anthropic.custom_base_url", "value": {"boolValue": true}},
+        {"key": "terminal.type", "value": {"stringValue": "dumb"}},
+        {"key": "event.name", "value": {"stringValue": "api_request"}},
+        {"key": "event.timestamp", "value": {"stringValue": "2026-11-16T15:51:45.270Z"}},
+        {"key": "event.sequence", "value": {"intValue": "6"}},
+        {"key": "prompt.id", "value": {"stringValue": "00000000-0000-4000-9000-000000000001"}},
+        {"key": "model", "value": {"stringValue": "deepseek-chat"}},
+        {"key": "input_tokens", "value": {"intValue": "1000"}},
+        {"key": "output_tokens", "value": {"intValue": "200"}},
+        {"key": "cache_read_tokens", "value": {"intValue": "500"}},
+        {"key": "cache_creation_tokens", "value": {"intValue": "0"}},
+        {"key": "cache_creation_5m_tokens", "value": {"intValue": "0"}},
+        {"key": "cache_creation_1h_tokens", "value": {"intValue": "0"}},
+        {"key": "cost_usd", "value": {"doubleValue": 0.0081}},
+        {"key": "cost_usd_micros", "value": {"intValue": "8100"}},
+        {"key": "duration_ms", "value": {"intValue": "22"}},
+        {"key": "ttft_ms", "value": {"intValue": "14"}},
+        {"key": "speed", "value": {"stringValue": "normal"}},
+        {"key": "query_source", "value": {"stringValue": "sdk"}},
+        {"key": "effort", "value": {"stringValue": "high"}}
+       ],
+       "flags": 1,
+       "traceId": "c329af044ca467b10b83ddd3e87a969e",
+       "spanId": "4bc6d4fd7abd13fc"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "resource": {
+    "attributes": [
+     {"key": "host.arch", "value": {"stringValue": "amd64"}},
+     {"key": "os.type", "value": {"stringValue": "linux"}},
+     {"key": "os.version", "value": {"stringValue": "6.8.0-generic"}},
+     {"key": "service.name", "value": {"stringValue": "claude-code"}},
+     {"key": "service.version", "value": {"stringValue": "2.1.325"}}
+    ]
+   },
+   "scopeLogs": [
+    {
+     "scope": {
+      "name": "com.anthropic.claude_code.events",
+      "version": "2.1.325"
+     },
+     "logRecords": [
+      {
+       "timeUnixNano": "1794844312309000000",
+       "observedTimeUnixNano": "1794844312309000000",
+       "body": {"stringValue": "claude_code.api_request"},
+       "attributes": [
+        {"key": "user.id", "value": {"stringValue": "0000000000000000000000000000000000000000000000000000000000000000"}},
+        {"key": "session.id", "value": {"stringValue": "00000000-0000-4000-8000-000000000002"}},
+        {"key": "anthropic.provider", "value": {"stringValue": "firstParty"}},
+        {"key": "anthropic.custom_base_url", "value": {"boolValue": true}},
+        {"key": "terminal.type", "value": {"stringValue": "dumb"}},
+        {"key": "event.name", "value": {"stringValue": "api_request"}},
+        {"key": "event.timestamp", "value": {"stringValue": "2026-11-16T15:51:52.309Z"}},
+        {"key": "event.sequence", "value": {"intValue": "6"}},
+        {"key": "prompt.id", "value": {"stringValue": "00000000-0000-4000-9000-000000000002"}},
+        {"key": "model", "value": {"stringValue": "glm-4.6"}},
+        {"key": "input_tokens", "value": {"intValue": "1000"}},
+        {"key": "output_tokens", "value": {"intValue": "200"}},
+        {"key": "cache_read_tokens", "value": {"intValue": "500"}},
+        {"key": "cache_creation_tokens", "value": {"intValue": "0"}},
+        {"key": "cache_creation_5m_tokens", "value": {"intValue": "0"}},
+        {"key": "cache_creation_1h_tokens", "value": {"intValue": "0"}},
+        {"key": "cost_usd", "value": {"doubleValue": 0.0081}},
+        {"key": "cost_usd_micros", "value": {"intValue": "8100"}},
+        {"key": "duration_ms", "value": {"intValue": "31"}},
+        {"key": "ttft_ms", "value": {"intValue": "20"}},
+        {"key": "speed", "value": {"stringValue": "normal"}},
+        {"key": "query_source", "value": {"stringValue": "sdk"}},
+        {"key": "effort", "value": {"stringValue": "medium"}}
+       ],
+       "flags": 1,
+       "traceId": "0b49f25dfd842a30c2f7f8f12a06ebc9",
+       "spanId": "28a114ec8d2b5901"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "resource": {
+    "attributes": [
+     {"key": "host.arch", "value": {"stringValue": "amd64"}},
+     {"key": "os.type", "value": {"stringValue": "linux"}},
+     {"key": "os.version", "value": {"stringValue": "6.8.0-generic"}},
+     {"key": "service.name", "value": {"stringValue": "claude-code"}},
+     {"key": "service.version", "value": {"stringValue": "2.1.325"}}
+    ]
+   },
+   "scopeLogs": [
+    {
+     "scope": {
+      "name": "com.anthropic.claude_code.events",
+      "version": "2.1.325"
+     },
+     "logRecords": [
+      {
+       "timeUnixNano": "1794844319371000000",
+       "observedTimeUnixNano": "1794844319371000000",
+       "body": {"stringValue": "claude_code.api_request"},
+       "attributes": [
+        {"key": "user.id", "value": {"stringValue": "0000000000000000000000000000000000000000000000000000000000000000"}},
+        {"key": "session.id", "value": {"stringValue": "00000000-0000-4000-8000-000000000003"}},
+        {"key": "anthropic.provider", "value": {"stringValue": "firstParty"}},
+        {"key": "anthropic.custom_base_url", "value": {"boolValue": true}},
+        {"key": "terminal.type", "value": {"stringValue": "dumb"}},
+        {"key": "event.name", "value": {"stringValue": "api_request"}},
+        {"key": "event.timestamp", "value": {"stringValue": "2026-11-16T15:51:59.371Z"}},
+        {"key": "event.sequence", "value": {"intValue": "6"}},
+        {"key": "prompt.id", "value": {"stringValue": "00000000-0000-4000-9000-000000000003"}},
+        {"key": "model", "value": {"stringValue": "deepseek-flash"}},
+        {"key": "input_tokens", "value": {"intValue": "1000"}},
+        {"key": "output_tokens", "value": {"intValue": "200"}},
+        {"key": "cache_read_tokens", "value": {"intValue": "500"}},
+        {"key": "cache_creation_tokens", "value": {"intValue": "0"}},
+        {"key": "cache_creation_5m_tokens", "value": {"intValue": "0"}},
+        {"key": "cache_creation_1h_tokens", "value": {"intValue": "0"}},
+        {"key": "cost_usd", "value": {"doubleValue": 0.0081}},
+        {"key": "cost_usd_micros", "value": {"intValue": "8100"}},
+        {"key": "duration_ms", "value": {"intValue": "23"}},
+        {"key": "ttft_ms", "value": {"intValue": "14"}},
+        {"key": "speed", "value": {"stringValue": "normal"}},
+        {"key": "query_source", "value": {"stringValue": "sdk"}},
+        {"key": "effort", "value": {"stringValue": "high"}}
+       ],
+       "flags": 1,
+       "traceId": "ff4c90627ffb33fe5079ab22cf7f3e29",
+       "spanId": "cd555608d0b55b64"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "resource": {
+    "attributes": [
+     {"key": "cost.basis", "value": {"stringValue": "managed"}},
+     {"key": "host.arch", "value": {"stringValue": "amd64"}},
+     {"key": "os.type", "value": {"stringValue": "linux"}},
+     {"key": "os.version", "value": {"stringValue": "6.8.0-generic"}},
+     {"key": "service.name", "value": {"stringValue": "claude-code"}},
+     {"key": "service.version", "value": {"stringValue": "2.1.325"}}
+    ]
+   },
+   "scopeLogs": [
+    {
+     "scope": {
+      "name": "com.anthropic.claude_code.events",
+      "version": "2.1.325"
+     },
+     "logRecords": [
+      {
+       "timeUnixNano": "1794844361071000000",
+       "observedTimeUnixNano": "1794844361071000000",
+       "body": {"stringValue": "claude_code.api_request"},
+       "attributes": [
+        {"key": "cost.basis", "value": {"stringValue": "managed"}},
+        {"key": "user.id", "value": {"stringValue": "0000000000000000000000000000000000000000000000000000000000000000"}},
+        {"key": "session.id", "value": {"stringValue": "00000000-0000-4000-8000-000000000004"}},
+        {"key": "anthropic.provider", "value": {"stringValue": "firstParty"}},
+        {"key": "anthropic.custom_base_url", "value": {"boolValue": true}},
+        {"key": "terminal.type", "value": {"stringValue": "dumb"}},
+        {"key": "event.name", "value": {"stringValue": "api_request"}},
+        {"key": "event.timestamp", "value": {"stringValue": "2026-11-16T15:52:41.071Z"}},
+        {"key": "event.sequence", "value": {"intValue": "7"}},
+        {"key": "prompt.id", "value": {"stringValue": "00000000-0000-4000-9000-000000000004"}},
+        {"key": "model", "value": {"stringValue": "deepseek-flash"}},
+        {"key": "input_tokens", "value": {"intValue": "1000"}},
+        {"key": "output_tokens", "value": {"intValue": "200"}},
+        {"key": "cache_read_tokens", "value": {"intValue": "500"}},
+        {"key": "cache_creation_tokens", "value": {"intValue": "0"}},
+        {"key": "cache_creation_5m_tokens", "value": {"intValue": "0"}},
+        {"key": "cache_creation_1h_tokens", "value": {"intValue": "0"}},
+        {"key": "cost_usd", "value": {"doubleValue": 0.0002715}},
+        {"key": "cost_usd_micros", "value": {"intValue": "272"}},
+        {"key": "duration_ms", "value": {"intValue": "24"}},
+        {"key": "ttft_ms", "value": {"intValue": "15"}},
+        {"key": "speed", "value": {"stringValue": "normal"}},
+        {"key": "query_source", "value": {"stringValue": "sdk"}},
+        {"key": "effort", "value": {"stringValue": "high"}}
+       ],
+       "flags": 1,
+       "traceId": "bb06e6e13383a6140982bdbf986e04a2",
+       "spanId": "1c9eab8097e56fe0"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

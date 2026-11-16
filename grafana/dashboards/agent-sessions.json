@@ -23,7 +23,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Lifetime cost and tokens of each session seen in the range.",
+      "description": "Lifetime cost and tokens of each session seen in the range. Estimated cost (third-party endpoint, Claude Code default-rate guess) has its own column.",
       "fieldConfig": {
         "defaults": {},
         "overrides": [
@@ -31,6 +31,22 @@
             "matcher": {
               "id": "byName",
               "options": "Cost (USD)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Estimated (USD)"
             },
             "properties": [
               {
@@ -59,7 +75,7 @@
       },
       "gridPos": {
         "h": 10,
-        "w": 10,
+        "w": 12,
         "x": 0,
         "y": 0
       },
@@ -74,7 +90,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sort_desc(sum by (agent_name, session_id) (max_over_time(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", session_id=~\"$session\"}[$__range])))",
+          "expr": "sort_desc(sum by (agent_name, session_id) (max_over_time(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", session_id=~\"$session\", cost_basis!=\"estimated\"}[$__range])))",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -86,12 +102,24 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (agent_name, session_id) (max_over_time({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total\", agent_name=~\"$agent\", session_id=~\"$session\", type!~\"total|cached_input|cache_write_input|reasoning_output|cache\"}[$__range]))",
+          "expr": "sum by (agent_name, session_id) (max_over_time(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", session_id=~\"$session\", cost_basis=\"estimated\"}[$__range]))",
           "format": "table",
           "instant": true,
           "legendFormat": "",
           "range": false,
           "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (agent_name, session_id) (max_over_time({__name__=~\"claude_code_token_usage_tokens_total|gemini_cli_token_usage_total\", agent_name=~\"$agent\", session_id=~\"$session\", type!~\"total|cached_input|cache_write_input|reasoning_output|cache\"}[$__range]))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "C"
         }
       ],
       "title": "Sessions",
@@ -112,12 +140,14 @@
             "indexByName": {
               "Value #A": 2,
               "Value #B": 3,
+              "Value #C": 4,
               "agent_name": 1,
               "session_id": 0
             },
             "renameByName": {
               "Value #A": "Cost (USD)",
-              "Value #B": "Tokens",
+              "Value #B": "Estimated (USD)",
+              "Value #C": "Tokens",
               "agent_name": "Agent",
               "session_id": "Session"
             }
@@ -130,6 +160,7 @@
               "names": [
                 "Value #A",
                 "Value #B",
+                "Value #C",
                 "agent_name",
                 "session_id"
               ]
@@ -151,8 +182,8 @@
       },
       "gridPos": {
         "h": 10,
-        "w": 14,
-        "x": 10,
+        "w": 12,
+        "x": 12,
         "y": 0
       },
       "id": 2,
@@ -355,7 +386,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{service_name=~\".+\", agent_name=~\"$agent\"} | session_id=~\"$session\" | line_format \"{{.event_name}}{{if .tool_name}}  tool={{.tool_name}}{{end}}{{if .tool_success}} success={{.tool_success}}{{end}}{{if and .tool_name .duration_ms}} {{.duration_ms}}ms{{end}}{{if .model}}  model={{.model}}{{end}}{{if .cost_usd}}  cost_usd={{.cost_usd}}{{end}}{{if .input_tokens}}  tokens in/out={{.input_tokens}}/{{.output_tokens}}{{end}}\"",
+          "expr": "{service_name=~\".+\", agent_name=~\"$agent\"} | session_id=~\"$session\" | line_format \"{{.event_name}}{{if .tool_name}}  tool={{.tool_name}}{{end}}{{if .tool_success}} success={{.tool_success}}{{end}}{{if and .tool_name .duration_ms}} {{.duration_ms}}ms{{end}}{{if .model}}  model={{.model}}{{end}}{{if .cost_usd}}  cost_usd={{.cost_usd}}{{if .cost_basis}} ({{.cost_basis}}){{end}}{{end}}{{if .input_tokens}}  tokens in/out={{.input_tokens}}/{{.output_tokens}}{{end}}\"",
           "legendFormat": "",
           "queryType": "range",
           "refId": "A"

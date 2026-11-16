@@ -6,7 +6,7 @@
   },
   "spec": {
     "display": {
-      "description": "Cost and token usage per coding agent and model. Cost is reported by Claude Code only.",
+      "description": "Cost and token usage per coding agent and model. Cost is reported by Claude Code only; cost of sessions on third-party endpoints is an estimate and shown apart.",
       "name": "Agent cost and tokens"
     },
     "duration": "6h",
@@ -20,8 +20,17 @@
                 "$ref": "#/spec/panels/cost_total"
               },
               "height": 4,
-              "width": 6,
+              "width": 5,
               "x": 0,
+              "y": 0
+            },
+            {
+              "content": {
+                "$ref": "#/spec/panels/cost_estimated_total"
+              },
+              "height": 4,
+              "width": 5,
+              "x": 5,
               "y": 0
             },
             {
@@ -29,8 +38,8 @@
                 "$ref": "#/spec/panels/tokens_total"
               },
               "height": 4,
-              "width": 6,
-              "x": 6,
+              "width": 5,
+              "x": 10,
               "y": 0
             },
             {
@@ -38,8 +47,8 @@
                 "$ref": "#/spec/panels/sessions_total"
               },
               "height": 4,
-              "width": 6,
-              "x": 12,
+              "width": 5,
+              "x": 15,
               "y": 0
             },
             {
@@ -47,8 +56,8 @@
                 "$ref": "#/spec/panels/active_time"
               },
               "height": 4,
-              "width": 6,
-              "x": 18,
+              "width": 4,
+              "x": 20,
               "y": 0
             },
             {
@@ -137,6 +146,7 @@
         "kind": "Panel",
         "spec": {
           "display": {
+            "description": "estimated: third-party endpoint, Claude Code default-rate guess. Claude Code sessions sent to ANTHROPIC_BASE_URL or a gateway (anthropic_custom_base_url=true) are still priced at Anthropic rates: an unknown model ID at the default model's rate, a server-mapped claude-* ID at Claude list price. list: Anthropic list price. managed: your own modelPricing rates (see the README). Token counts are exact either way.",
             "name": "Cost by model"
           },
           "plugin": {
@@ -159,8 +169,41 @@
                   "kind": "PrometheusTimeSeriesQuery",
                   "spec": {
                     "instant": true,
-                    "query": "sort_desc(sum by (agent_name, model) (increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored)))",
-                    "seriesNameFormat": "{{agent_name}} {{model}}"
+                    "query": "sort_desc(sum by (agent_name, model, cost_basis) (increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\", cost_basis=~\"$cost_basis\"}[$__range] anchored)))",
+                    "seriesNameFormat": "{{agent_name}} {{model}} ({{cost_basis}})"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "cost_estimated_total": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "description": "estimated: third-party endpoint, Claude Code default-rate guess. Claude Code sessions sent to ANTHROPIC_BASE_URL or a gateway (anthropic_custom_base_url=true) are still priced at Anthropic rates: an unknown model ID at the default model's rate, a server-mapped claude-* ID at Claude list price. list: Anthropic list price. managed: your own modelPricing rates (see the README). Token counts are exact either way.",
+            "name": "Estimated cost (USD)"
+          },
+          "plugin": {
+            "kind": "StatChart",
+            "spec": {
+              "calculation": "last-number",
+              "format": {
+                "decimalPlaces": 4,
+                "unit": "usd"
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "sum(increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\", cost_basis=~\"$cost_basis\", cost_basis=\"estimated\"}[$__range] anchored)) or vector(0)"
                   }
                 }
               }
@@ -172,6 +215,7 @@
         "kind": "Panel",
         "spec": {
           "display": {
+            "description": "estimated: third-party endpoint, Claude Code default-rate guess. Claude Code sessions sent to ANTHROPIC_BASE_URL or a gateway (anthropic_custom_base_url=true) are still priced at Anthropic rates: an unknown model ID at the default model's rate, a server-mapped claude-* ID at Claude list price. list: Anthropic list price. managed: your own modelPricing rates (see the README). Token counts are exact either way.",
             "name": "Cost per interval by model"
           },
           "plugin": {
@@ -204,8 +248,8 @@
                   "kind": "PrometheusTimeSeriesQuery",
                   "spec": {
                     "minStep": "1m",
-                    "query": "sum by (agent_name, model) (increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\"}[$__interval] anchored))",
-                    "seriesNameFormat": "{{agent_name}} {{model}}"
+                    "query": "sum by (agent_name, model, cost_basis) (increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\", cost_basis=~\"$cost_basis\"}[$__interval] anchored))",
+                    "seriesNameFormat": "{{agent_name}} {{model}} ({{cost_basis}})"
                   }
                 }
               }
@@ -217,7 +261,7 @@
         "kind": "Panel",
         "spec": {
           "display": {
-            "description": "Cost reported by Claude Code (claude_code.cost.usage) in the selected range. Codex and Gemini CLI do not export cost.",
+            "description": "Cost reported by Claude Code (claude_code.cost.usage) in the selected range at list price or your managed modelPricing rates. Estimated cost is not included. Codex and Gemini CLI do not export cost.",
             "name": "Cost (USD)"
           },
           "plugin": {
@@ -238,7 +282,7 @@
                   "kind": "PrometheusTimeSeriesQuery",
                   "spec": {
                     "instant": true,
-                    "query": "sum(increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored))"
+                    "query": "sum(increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\", cost_basis=~\"$cost_basis\", cost_basis!=\"estimated\"}[$__range] anchored)) or vector(0)"
                   }
                 }
               }
@@ -431,6 +475,7 @@
         "kind": "Panel",
         "spec": {
           "display": {
+            "description": "estimated: third-party endpoint, Claude Code default-rate guess. Claude Code sessions sent to ANTHROPIC_BASE_URL or a gateway (anthropic_custom_base_url=true) are still priced at Anthropic rates: an unknown model ID at the default model's rate, a server-mapped claude-* ID at Claude list price. list: Anthropic list price. managed: your own modelPricing rates (see the README). Token counts are exact either way.",
             "name": "Most expensive sessions"
           },
           "plugin": {
@@ -448,6 +493,10 @@
                 {
                   "header": "Model",
                   "name": "model"
+                },
+                {
+                  "header": "Cost basis",
+                  "name": "cost_basis"
                 },
                 {
                   "format": {
@@ -487,7 +536,7 @@
                   "kind": "PrometheusTimeSeriesQuery",
                   "spec": {
                     "instant": true,
-                    "query": "topk(10, sum by (agent_name, session_id, model) (increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\"}[$__range] anchored)))"
+                    "query": "topk(10, sum by (agent_name, session_id, model, cost_basis) (increase(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", model=~\"$model\", cost_basis=~\"$cost_basis\"}[$__range] anchored)))"
                   }
                 }
               }
@@ -537,6 +586,28 @@
               "labelName": "model",
               "matchers": [
                 "{agent_name=~\"$agent\", model!=\"\"}"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "kind": "ListVariable",
+        "spec": {
+          "allowAllValue": true,
+          "allowMultiple": true,
+          "customAllValue": ".*",
+          "defaultValue": "$__all",
+          "display": {
+            "name": "Cost basis"
+          },
+          "name": "cost_basis",
+          "plugin": {
+            "kind": "PrometheusLabelValuesVariable",
+            "spec": {
+              "labelName": "cost_basis",
+              "matchers": [
+                "claude_code_cost_usage_USD_total{agent_name=~\"$agent\"}"
               ]
             }
           }

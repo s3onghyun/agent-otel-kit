@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
 # Run the collector config against recorded agent payloads and check what
 # leaves the processors: agent.name normalization, tool fields, the derived
-# tool histogram and content redaction. Needs docker and python3.
+# tool histogram, content redaction, and the Claude Code model suffix and cost
+# basis. Needs docker and python3.
 #
 #   scripts/test-collector.sh
 #
 # The payloads in collector/testdata/ have the shape real Codex 0.169.0 and
 # Gemini CLI 0.68.0 sessions sent (IDs and values replaced).
+# claude-thirdparty-*.json were recorded from Claude Code 2.1.325 runs against
+# a mock Anthropic-compatible endpoint (IDs replaced), one session each:
+#   ...01 ANTHROPIC_MODEL=deepseek-chat (unknown model ID)
+#   ...02 no model set, the endpoint answers as glm-4.6 (server-side mapping)
+#   ...03 ANTHROPIC_MODEL=deepseek-flash[1m] (provider-guide suffix)
+#   ...04 as 03, with managed modelPricing and OTEL_RESOURCE_ATTRIBUTES=cost.basis=managed
+#   ...00 a copy of 02 with anthropic.custom_base_url=false, the value Claude
+#         Code sends without ANTHROPIC_BASE_URL
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -134,10 +143,51 @@ for k, dp in tools.items():
     check(int(dp.get("count", 0)) == 1, f"derived histogram count for {k} = {dp.get('count')}")
     check(int(dp.get("startTimeUnixNano", "0")) > 0, f"derived histogram start time missing for {k}")
 
+# Claude Code against third-party endpoints: model suffix and cost basis
+def sess(n):
+    return "00000000-0000-4000-8000-00000000000%d" % n
+
+cost = {a.get("session.id"): (a.get("model"), a.get("cost.basis"), a.get("anthropic.custom_base_url"), dp.get("asDouble"))
+        for n, r, a, dp in points if n == "claude_code.cost.usage"}
+want = {
+    sess(0): ("claude-opus-5-5", "list", False, 0.0081),
+    sess(1): ("deepseek-chat", "estimated", True, 0.0081),
+    sess(2): ("claude-opus-5-5", "estimated", True, 0.0081),
+    sess(3): ("deepseek-flash", "estimated", True, 0.0081),
+    sess(4): ("deepseek-flash", "managed", True, 0.0002715),
+}
+check(cost == want, f"claude cost points (model, cost.basis, anthropic.custom_base_url, value) = {cost}")
+for n, r, a, dp in points:
+    if n.startswith("claude_code."):
+        check("[" not in (a.get("model") or ""), f"model suffix kept on {n}: {a.get('model')}")
+tok = sorted((a.get("type"), int(dp.get("asInt") or dp.get("asDouble") or 0)) for n, r, a, dp in points
+             if n == "claude_code.token.usage" and a.get("session.id") == sess(3))
+check(tok == [("cacheCreation", 0), ("cacheRead", 500), ("input", 1000), ("output", 200)], f"claude token points of session 3 = {tok}")
+check(all(a.get("model") == "deepseek-flash" for n, r, a, dp in points if n == "claude_code.token.usage" and a.get("session.id") == sess(3)),
+      "claude token points of session 3 not normalized to deepseek-flash")
+check(not any("cost.basis" in a for n, r, a, dp in points if n == "claude_code.token.usage" and a.get("session.id") != sess(4)),
+      "cost.basis set on token points")
+
+reqs = {a.get("session.id"): (a.get("model"), a.get("cost.basis")) for r, a in log_of("api_request")}
+check(reqs == {sess(1): ("deepseek-chat", "estimated"), sess(2): ("glm-4.6", "estimated"),
+               sess(3): ("deepseek-flash", "estimated"), sess(4): ("deepseek-flash", "managed")},
+      f"claude api_request (model, cost.basis) = {reqs}")
+
+spans = []
+for batch in lines("traces.json"):
+    for rs in batch.get("resourceSpans", []):
+        for ss in rs.get("scopeSpans", []):
+            for sp in ss.get("spans", []):
+                spans.append((sp["name"], attrs(sp.get("attributes"))))
+llm = {a.get("session.id"): (a.get("model"), a.get("gen_ai.request.model")) for n, a in spans if n == "claude_code.llm_request"}
+check(llm == {sess(1): ("deepseek-chat",) * 2, sess(2): ("claude-opus-5-5",) * 2,
+              sess(3): ("deepseek-flash",) * 2, sess(4): ("deepseek-flash",) * 2},
+      f"claude llm_request span (model, gen_ai.request.model) = {llm}")
+
 if fails:
     print("collector test FAILED:")
     for f in fails:
         print("  -", f)
     sys.exit(1)
-print(f"collector test ok: {len(logs)} log records, {len(points)} metric points checked")
+print(f"collector test ok: {len(logs)} log records, {len(points)} metric points, {len(spans)} spans checked")
 PY

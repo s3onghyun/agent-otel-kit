@@ -82,7 +82,7 @@ Claude Code、Codex 和 Gemini CLI 默认以 delta temporality 导出计数器�
 
 三个仪表盘在 Grafana（`grafana/dashboards/`）和 Perses（`perses/provisioning/dashboards/`）中都有。两者都由 `tools/gendashboards` 中的同一份面板列表生成（`make dashboards`）；如果提交的 JSON 与生成结果不一致，CI 会失败。
 
-**Agent cost and tokens**：所选时间范围内的费用、token、会话和活跃时间；按模型划分的每区间费用；按类型划分的每区间 token；按模型划分的费用；按 agent、模型和类型划分的 token；费用最高的会话。
+**Agent cost and tokens**：所选时间范围内的费用、估算费用（见下文"第三方端点"一节）、token、会话和活跃时间；按模型划分的每区间费用；按类型划分的每区间 token；按模型划分的费用；按 agent、模型和类型划分的 token；费用最高的会话。Cost basis 选择器按 `cost_basis` 筛选费用。
 
 ![Grafana：agent 费用与 token](docs/screenshots/grafana-cost-tokens.png)
 
@@ -110,6 +110,51 @@ token 总数（Tokens 统计值和按会话的 Tokens 列）只累加互不重�
 
 截图取自这套栈，数据来自在作者机器上运行的真实会话：Claude Code（`make demo`）、`codex exec` 和 `gemini -p`，然后运行 `make screenshots`。顶部的演示 GIF 是在一次这样的运行期间用 headless Chromium 录制的同一组仪表盘，只做了裁剪和加速；`docs/demo.mp4` 是其原始文件。
 
+## 使用第三方（Anthropic 兼容）端点的 Claude Code
+
+DeepSeek、Z.ai（GLM）、Moonshot（Kimi）、MiniMax 和阿里云百炼（Alibaba Model Studio）都发布了通过 `ANTHROPIC_BASE_URL` 让 Claude Code 连接其 Anthropic 兼容 API 的指南。此时 Claude Code 照常导出遥测，kit 无需改动即可接收。仪表盘上显示的内容（用 Claude Code 2.1.325 和本地模拟端点测得，尚未在真实 provider 上验证）：
+
+- token 数是准确的：就是端点返回的 usage 数值。
+- 费用不准确。Claude Code 在本地按 Anthropic 价格计算费用。它不认识的模型 ID（`deepseek-chat`、`glm-4.6`）按其默认模型的价格计费（2.1.325 中为每百万 token 输入 $4、输出 $20、缓存读取 $0.20）。当 provider 在服务端映射 Claude 模型 ID 时（Claude Code 发送 `claude-opus-5-5`，provider 运行自己的模型），指标上显示的是按 Claude 标价计费的 `claude-opus-5-5`。实际应答的模型只出现在 `api_request` 事件的 `model` 中，而且仅当 provider 返回真实名称时才有。
+- 这类会话的每个指标、事件和 span 都带有 `anthropic.custom_base_url=true`（Prometheus 标签 `anthropic_custom_base_url`），kit 会保留它。
+
+collector 的处理：
+
+- 给每个 Claude Code 费用序列和 `api_request` 事件加上 `cost_basis`：`anthropic.custom_base_url` 为 true 时是 `estimated`，否则是 `list`。你在 agent 上自行设置的 `cost.basis` 会被保留（见下文）。费用仪表盘把 **Cost (USD)**（list 和 managed）与 **Estimated cost (USD)** 分开显示，并在每个费用序列名称和会话表中标出 basis。
+- 去掉 Claude Code 指标、事件和 span 中 `model` 末尾的上下文窗口后缀，例如 `[1m]`。provider 指南把模型 ID 写成 `deepseek-flash[1m]`；Claude Code 发给 API 的是 `deepseek-flash`，但在遥测中保留后缀，导致同一模型分成两个序列。Claude Code 自带的 `[1m]` 模型 ID 也会以同样方式合并。
+
+### 精确费用：managed 设置中的 `modelPricing`
+
+Claude Code（v2.1.242 或更高版本）按 `modelPricing.overrides` 表为模型定价，并同样应用于 OpenTelemetry 费用指标和事件。它只从 managed 设置读取该表，需要 root 或管理员权限：
+
+- Linux：`/etc/claude-code/managed-settings.json`
+- macOS：`/Library/Application Support/ClaudeCode/managed-settings.json`
+
+```
+{
+  "modelPricing": {
+    "overrides": {
+      "deepseek-flash": { "input": INPUT, "output": OUTPUT, "cacheRead": CACHE_READ, "cacheWrite": CACHE_WRITE },
+      "claude-opus-5-5": { "input": INPUT, "output": OUTPUT, "cacheRead": CACHE_READ, "cacheWrite": CACHE_WRITE }
+    }
+  }
+}
+```
+
+把每个占位符替换为 provider 当前的价格（美元/百万 token）：[DeepSeek](https://api-docs.deepseek.com/quick_start/pricing)、[Z.ai](https://docs.z.ai/guides/overview/pricing)、[Moonshot](https://platform.kimi.ai/docs/pricing/chat)、[MiniMax](https://platform.minimax.io/docs/pricing/overview)、[阿里云百炼](https://www.alibabacloud.com/help/en/model-studio/model-pricing)。键使用不带后缀的模型 ID：`deepseek-flash` 同样适用于 `deepseek-flash[1m]`。若是服务端映射，用 Claude Code 发送的 Claude 模型 ID（上例中的 `claude-opus-5-5`）作为键，填入它所映射的 provider 模型的价格。如果文件已存在，只需加入 `modelPricing` 键。参考：[Claude Code 设置，`modelPricing`](https://code.claude.com/docs/en/settings-reference#modelpricing)。
+
+agent-otel-kit 从不写入该文件；`setup` 只修改 `~/.claude/settings.json`。
+
+collector 无法得知定价表是否生效，所以需要你告诉它：在 `~/.claude/settings.json` 的 `env` 中，把 `cost.basis=managed` 加入 `OTEL_RESOURCE_ATTRIBUTES`。Claude Code 会把 resource 属性复制到每个指标和事件上，仪表盘随后把这部分费用计为精确值。如果是放在 Anthropic 本身前面的网关，费用就是 Anthropic 标价，则改设 `cost.basis=list`。
+
+### 区分 provider
+
+仅凭 `anthropic.custom_base_url` 无法知道会话用的是哪个 provider，服务端映射时模型名也看不出来。请在 agent 上打标签，例如 `"OTEL_RESOURCE_ATTRIBUTES": "llm.provider=deepseek,cost.basis=managed"`；之后 Claude Code 的每个序列都带有 `llm_provider` 标签。
+
+### 订阅套餐
+
+在包月编程套餐（GLM Coding Plan、Kimi 会员、MiniMax 与阿里云的编程套餐）下，按 token 计算的美元金额没有意义：你购买的是额度，而不是按 token 付费。请看准确的 token 面板，忽略费用面板，或把 Cost basis 选择器设为 `list`。
+
 ## Perses
 
 ```sh
@@ -128,7 +173,7 @@ Perses 在 <http://localhost:8080> 启动，带有项目 `agent-otel-kit`、Prom
 - 指标到达较晚：除非设置了 `OTEL_METRIC_EXPORT_INTERVAL`，Claude Code 每 60 s 导出一次指标（setup 设置为 10 s）；事件和 span 每 5 s 导出一次。
 - 没有来自 Claude Code 的链路：traces beta 需要 `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1` 和 `OTEL_TRACES_EXPORTER=otlp`。
 - 要查看原始数据，用 `make up-debug` 启动，然后运行 `docker compose logs -f otel-collector`。
-- `make test-collector` 用从 Codex 和 Gemini CLI 录制的 payload（位于 `collector/testdata/`）运行 collector 配置，并检查标准化、工具直方图和脱敏处理。
+- `make test-collector` 用从 Codex、Gemini CLI 和 Claude Code 录制的 payload（位于 `collector/testdata/`）运行 collector 配置，并检查标准化、工具直方图、脱敏处理，以及 Claude Code 的模型后缀和 cost basis。
 - 重启 collector 会重置其 delta-to-cumulative 状态；仪表盘会将其视为计数器重置。
 - 内存上限：collector、Prometheus、Loki 和 Tempo 各 512 MiB，Grafana 384 MiB，Perses 256 MiB。
 - `make clean` 会停止栈并删除其数据卷。

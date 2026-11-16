@@ -20,7 +20,7 @@
                 "$ref": "#/spec/panels/sessions"
               },
               "height": 10,
-              "width": 10,
+              "width": 12,
               "x": 0,
               "y": 0
             },
@@ -29,8 +29,8 @@
                 "$ref": "#/spec/panels/traces"
               },
               "height": 10,
-              "width": 14,
-              "x": 10,
+              "width": 12,
+              "x": 12,
               "y": 0
             },
             {
@@ -183,7 +183,7 @@
                   "kind": "LokiLogQuery",
                   "spec": {
                     "direction": "backward",
-                    "query": "{service_name=~\".+\", agent_name=~\"$agent\"} | session_id=~\"$session\" | line_format \"{{.event_name}}{{if .tool_name}}  tool={{.tool_name}}{{end}}{{if .tool_success}} success={{.tool_success}}{{end}}{{if and .tool_name .duration_ms}} {{.duration_ms}}ms{{end}}{{if .model}}  model={{.model}}{{end}}{{if .cost_usd}}  cost_usd={{.cost_usd}}{{end}}{{if .input_tokens}}  tokens in/out={{.input_tokens}}/{{.output_tokens}}{{end}}\""
+                    "query": "{service_name=~\".+\", agent_name=~\"$agent\"} | session_id=~\"$session\" | line_format \"{{.event_name}}{{if .tool_name}}  tool={{.tool_name}}{{end}}{{if .tool_success}} success={{.tool_success}}{{end}}{{if and .tool_name .duration_ms}} {{.duration_ms}}ms{{end}}{{if .model}}  model={{.model}}{{end}}{{if .cost_usd}}  cost_usd={{.cost_usd}}{{if .cost_basis}} ({{.cost_basis}}){{end}}{{end}}{{if .input_tokens}}  tokens in/out={{.input_tokens}}/{{.output_tokens}}{{end}}\""
                   }
                 }
               }
@@ -195,7 +195,7 @@
         "kind": "Panel",
         "spec": {
           "display": {
-            "description": "Lifetime cost and tokens of each session seen in the range.",
+            "description": "Lifetime cost and tokens of each session seen in the range. Estimated cost (third-party endpoint, Claude Code default-rate guess) has its own column.",
             "name": "Sessions"
           },
           "plugin": {
@@ -220,11 +220,19 @@
                 },
                 {
                   "format": {
+                    "decimalPlaces": 4,
+                    "unit": "usd"
+                  },
+                  "header": "Estimated (USD)",
+                  "name": "value #2"
+                },
+                {
+                  "format": {
                     "shortValues": true,
                     "unit": "decimal"
                   },
                   "header": "Tokens",
-                  "name": "value #2"
+                  "name": "value #3"
                 },
                 {
                   "hide": true,
@@ -252,7 +260,8 @@
                   "spec": {
                     "columns": [
                       "agent_name #1",
-                      "agent_name #2"
+                      "agent_name #2",
+                      "agent_name #3"
                     ],
                     "name": "agent_name"
                   }
@@ -262,7 +271,8 @@
                   "spec": {
                     "columns": [
                       "session_id #1",
-                      "session_id #2"
+                      "session_id #2",
+                      "session_id #3"
                     ],
                     "name": "session_id"
                   }
@@ -287,7 +297,19 @@
                   "kind": "PrometheusTimeSeriesQuery",
                   "spec": {
                     "instant": true,
-                    "query": "sort_desc(sum by (agent_name, session_id) (max_over_time(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", session_id=~\"$session\"}[$__range])))"
+                    "query": "sort_desc(sum by (agent_name, session_id) (max_over_time(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", session_id=~\"$session\", cost_basis!=\"estimated\"}[$__range])))"
+                  }
+                }
+              }
+            },
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "instant": true,
+                    "query": "sum by (agent_name, session_id) (max_over_time(claude_code_cost_usage_USD_total{agent_name=~\"$agent\", session_id=~\"$session\", cost_basis=\"estimated\"}[$__range]))"
                   }
                 }
               }
