@@ -111,7 +111,7 @@ Metric names seen in Prometheus from Claude Code 2.1.325: `claude_code_cost_usag
 
 Event names seen in Loki: Claude Code `tool_result`, `tool_decision`, `api_request`, `user_prompt`, ...; Codex `codex.tool_result`, `codex.tool_decision`, `codex.sse_event`, `codex.api_request`, `codex.user_prompt`, ...; Gemini CLI `gemini_cli.tool_call`, `gemini_cli.api_request`, `gemini_cli.api_response`, `gemini_cli.file_operation`, `gemini_cli.user_prompt`, ...; Qwen Code `qwen-code.tool_call`, `qwen-code.api_request`, `qwen-code.api_response`, `qwen-code.file_operation`, `qwen-code.user_prompt`, .... Claude Code also defines `claude_code.lines_of_code.count`, `claude_code.commit.count`, `claude_code.pull_request.count` and `claude_code.code_edit_tool.decision`, which only appear after edits, commits or pull requests.
 
-The screenshots were taken from this stack with real sessions run on the author's machine: Claude Code (`make demo`), `codex exec` and `gemini -p`, then `make screenshots`. The demo GIF at the top is a headless Chromium recording of the same dashboards during one such run, only trimmed and sped up; `docs/demo.mp4` is its source.
+The screenshots were taken from this stack with real sessions run on the author's machine: Claude Code (`make demo`), `codex exec`, `gemini -p` and Qwen Code 0.27.4 (`qwen -p`, against a local OpenAI-compatible mock model server with a dummy key), then `make screenshots`. The demo GIF at the top is a headless Chromium recording of the same dashboards during one such run, only trimmed and sped up; `docs/demo.mp4` is its source.
 
 ## Claude Code with third-party (Anthropic-compatible) endpoints
 
@@ -310,7 +310,7 @@ Prometheus에 실제로 들어온 메트릭 이름. Claude Code 2.1.325: `claude
 
 Loki에서 본 이벤트 이름: Claude Code `tool_result`, `tool_decision`, `api_request`, `user_prompt` 등; Codex `codex.tool_result`, `codex.tool_decision`, `codex.sse_event`, `codex.api_request`, `codex.user_prompt` 등; Gemini CLI `gemini_cli.tool_call`, `gemini_cli.api_request`, `gemini_cli.api_response`, `gemini_cli.file_operation`, `gemini_cli.user_prompt` 등; Qwen Code `qwen-code.tool_call`, `qwen-code.api_request`, `qwen-code.api_response`, `qwen-code.file_operation`, `qwen-code.user_prompt` 등.
 
-스크린샷은 작성자 컴퓨터에서 실제 세션을 돌린 이 스택에서 찍었습니다: Claude Code(`make demo`), `codex exec`, `gemini -p`, 그다음 `make screenshots`. 맨 위 데모 GIF는 그런 실행 한 번 동안 같은 대시보드를 headless Chromium으로 녹화한 것으로, 자르기와 배속만 했습니다. 원본은 `docs/demo.mp4`입니다.
+스크린샷은 작성자 컴퓨터에서 실제 세션을 돌린 이 스택에서 찍었습니다: Claude Code(`make demo`), `codex exec`, `gemini -p`, Qwen Code 0.27.4(`qwen -p`, dummy 키를 쓰는 로컬 OpenAI 호환 mock 모델 서버 대상), 그다음 `make screenshots`. 맨 위 데모 GIF는 그런 실행 한 번 동안 같은 대시보드를 headless Chromium으로 녹화한 것으로, 자르기와 배속만 했습니다. 원본은 `docs/demo.mp4`입니다.
 
 ### 서드파티(Anthropic 호환) 엔드포인트로 Claude Code 쓰기
 

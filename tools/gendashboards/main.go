@@ -141,7 +141,7 @@ func dashboards() []dashboard {
 			{name: "cost_basis", label: "Cost basis", labelName: "cost_basis", matcher: `claude_code_cost_usage_USD_total{agent_name=~"$agent"}`},
 		},
 		panels: []panel{
-			{id: "cost_total", title: "Cost (USD)", desc: "Cost reported by Claude Code (claude_code.cost.usage) in the selected range at list price or your managed modelPricing rates. Estimated cost is not included. Codex and Gemini CLI do not export cost.",
+			{id: "cost_total", title: "Cost (USD)", desc: "Cost reported by Claude Code (claude_code.cost.usage) in the selected range at list price or your managed modelPricing rates. Estimated cost is not included. Codex, Gemini CLI and Qwen Code do not export cost.",
 				kind: stat, unit: "currencyUSD", decimals: 4, x: 0, y: 0, w: 5, h: 4,
 				queries: []query{{ds: prom, expr: "sum(" + rangeTotal(costExactSel) + ") or vector(0)", instant: true}}},
 			{id: "cost_estimated_total", title: "Estimated cost (USD)", desc: costBasisDesc,

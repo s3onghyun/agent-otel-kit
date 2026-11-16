@@ -114,7 +114,7 @@ token 总数（Tokens 统计值和按会话的 Tokens 列）只累加互不重�
 
 在 Loki 中看到的事件名：Claude Code `tool_result`、`tool_decision`、`api_request`、`user_prompt`……；Codex `codex.tool_result`、`codex.tool_decision`、`codex.sse_event`、`codex.api_request`、`codex.user_prompt`……；Gemini CLI `gemini_cli.tool_call`、`gemini_cli.api_request`、`gemini_cli.api_response`、`gemini_cli.file_operation`、`gemini_cli.user_prompt`……；Qwen Code `qwen-code.tool_call`、`qwen-code.api_request`、`qwen-code.api_response`、`qwen-code.file_operation`、`qwen-code.user_prompt`……。Claude Code 还定义了 `claude_code.lines_of_code.count`、`claude_code.commit.count`、`claude_code.pull_request.count` 和 `claude_code.code_edit_tool.decision`，它们只在发生编辑、commit 或 pull request 后才会出现。
 
-截图取自这套栈，数据来自在作者机器上运行的真实会话：Claude Code（`make demo`）、`codex exec` 和 `gemini -p`，然后运行 `make screenshots`。顶部的演示 GIF 是在一次这样的运行期间用 headless Chromium 录制的同一组仪表盘，只做了裁剪和加速；`docs/demo.mp4` 是其原始文件。
+截图取自这套栈，数据来自在作者机器上运行的真实会话：Claude Code（`make demo`）、`codex exec`、`gemini -p` 和 Qwen Code 0.27.4（`qwen -p`，连接使用 dummy key 的本地 OpenAI 兼容 mock 模型服务器），然后运行 `make screenshots`。顶部的演示 GIF 是在一次这样的运行期间用 headless Chromium 录制的同一组仪表盘，只做了裁剪和加速；`docs/demo.mp4` 是其原始文件。
 
 ## 使用第三方（Anthropic 兼容）端点的 Claude Code
 
