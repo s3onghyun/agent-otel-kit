@@ -4,7 +4,7 @@ See the cost, tokens, tool calls and traces of Claude Code, Codex and Gemini CLI
 
 ![Demo: Claude Code, Codex and Gemini CLI sessions arriving in the Grafana cost and tokens dashboard, then a Claude Code trace waterfall from Tempo](docs/demo.gif)
 
-[한국어](#한국어)
+[한국어](#한국어) · [简体中文](README.zh-CN.md)
 
 agent-otel-kit is a local OpenTelemetry stack for AI coding agents: an OpenTelemetry Collector that receives the agents' OTLP telemetry, Prometheus for metrics, Loki for events, Tempo for traces, and the same three dashboards in Grafana and in Perses. A small Go CLI points each agent at the collector and checks that data arrives.
 
