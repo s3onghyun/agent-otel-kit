@@ -16,6 +16,11 @@
 #   ...04 as 03, with managed modelPricing and OTEL_RESOURCE_ATTRIBUTES=cost.basis=managed
 #   ...00 a copy of 02 with anthropic.custom_base_url=false, the value Claude
 #         Code sends without ANTHROPIC_BASE_URL
+# claude-thirdparty-mixed-metrics.json is derived, not recorded: session 03's
+# metrics as session ...05, plus a second point per metric for model
+# deepseek-flash (no suffix) in the same request with the same timestamps, as
+# when a provider guide sets OPUS/SONNET to deepseek-flash[1m] and HAIKU to
+# deepseek-flash. After the suffix strip both must add up to one point.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -155,7 +160,10 @@ want = {
     sess(2): ("claude-opus-5-5", "estimated", True, 0.0081),
     sess(3): ("deepseek-flash", "estimated", True, 0.0081),
     sess(4): ("deepseek-flash", "managed", True, 0.0002715),
+    sess(5): ("deepseek-flash", "estimated", True, 0.00891),
 }
+cost = {k: v[:3] + (round(v[3], 12),) for k, v in cost.items()}
+check(len([1 for n, r, a, dp in points if n == "claude_code.cost.usage"]) == len(want), "claude cost points not one per session")
 check(cost == want, f"claude cost points (model, cost.basis, anthropic.custom_base_url, value) = {cost}")
 for n, r, a, dp in points:
     if n.startswith("claude_code."):
@@ -165,6 +173,11 @@ tok = sorted((a.get("type"), int(dp.get("asInt") or dp.get("asDouble") or 0)) fo
 check(tok == [("cacheCreation", 0), ("cacheRead", 500), ("input", 1000), ("output", 200)], f"claude token points of session 3 = {tok}")
 check(all(a.get("model") == "deepseek-flash" for n, r, a, dp in points if n == "claude_code.token.usage" and a.get("session.id") == sess(3)),
       "claude token points of session 3 not normalized to deepseek-flash")
+tok = sorted((a.get("model"), a.get("type"), int(dp.get("asInt") or dp.get("asDouble") or 0)) for n, r, a, dp in points
+             if n == "claude_code.token.usage" and a.get("session.id") == sess(5))
+check(tok == [("deepseek-flash", "cacheCreation", 0), ("deepseek-flash", "cacheRead", 550),
+              ("deepseek-flash", "input", 1100), ("deepseek-flash", "output", 220)],
+      f"claude token points of session 5 (suffixed and plain model in one export) = {tok}")
 check(not any("cost.basis" in a for n, r, a, dp in points if n == "claude_code.token.usage" and a.get("session.id") != sess(4)),
       "cost.basis set on token points")
 

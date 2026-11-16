@@ -95,6 +95,13 @@ processors:
           # start (created) time and Prometheus can insert its zero sample;
           # otherwise the first increment of every new series is lost.
           - set(datapoint.start_time_unix_nano, datapoint.time_unix_nano - 1000000) where datapoint.start_time_unix_nano == 0
+      - context: metric
+        statements:
+          # One export can hold deepseek-flash[1m] and deepseek-flash points
+          # with the same timestamps (provider guides set OPUS/SONNET with the
+          # suffix, HAIKU without). After the strip they are one series; add
+          # them up here, or delta_to_cumulative drops all but the first.
+          - aggregate_on_attributes("sum") where metric.type == METRIC_DATA_TYPE_SUM and IsMatch(metric.name, "^claude_code\\.")
     log_statements:
       - context: resource
         statements: *agent_resource
