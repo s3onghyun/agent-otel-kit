@@ -14,11 +14,12 @@ import (
 // ~/.qwen/settings.json.
 // https://qwenlm.github.io/qwen-code-docs/en/developers/development/telemetry/
 //
-// setup writes otlpProtocol "grpc" by default: Qwen Code's OTLP/HTTP exporter
-// has an open report of sending empty bodies (QwenLM/qwen-code#14466). The
-// gRPC endpoint is the OTLP/HTTP endpoint with port 4318 replaced by 4317,
-// the two ports compose.yaml publishes. With --protocol http Qwen Code
-// appends /v1/traces, /v1/logs and /v1/metrics to otlpEndpoint itself.
+// setup prefers otlpProtocol "grpc": Qwen Code's OTLP/HTTP exporter has an
+// open report of sending empty bodies (QwenLM/qwen-code#14466). The gRPC
+// endpoint is the OTLP/HTTP endpoint with port 4318 replaced by 4317, the two
+// ports compose.yaml publishes. Without an explicit protocol, an endpoint on
+// any other port gets "http" instead. With "http" Qwen Code appends
+// /v1/traces, /v1/logs and /v1/metrics to otlpEndpoint itself.
 //
 // The per-signal otlp*Endpoint keys and outfile override otlpEndpoint, so
 // setup removes them. logPrompts is turned off explicitly. Qwen Code writes
@@ -57,9 +58,17 @@ func QwenGRPCEndpoint(httpEndpoint string) (string, error) {
 	return u.Scheme + "://" + net.JoinHostPort(u.Hostname(), "4317"), nil
 }
 
-func qwenTarget(opts Options) (protocol, endpoint string, err error) {
+// QwenTarget returns the otlpProtocol and otlpEndpoint setup writes for opts.
+// An empty opts.Protocol picks grpc when the endpoint's port is 4318 and
+// http otherwise.
+func QwenTarget(opts Options) (protocol, endpoint string, err error) {
 	switch opts.Protocol {
-	case "", "grpc":
+	case "":
+		if ep, err := QwenGRPCEndpoint(opts.Endpoint); err == nil {
+			return "grpc", ep, nil
+		}
+		return "http", opts.Endpoint, nil
+	case "grpc":
 		ep, err := QwenGRPCEndpoint(opts.Endpoint)
 		return "grpc", ep, err
 	case "http":
@@ -70,7 +79,7 @@ func qwenTarget(opts Options) (protocol, endpoint string, err error) {
 }
 
 func (qwen) Apply(current []byte, opts Options) ([]byte, error) {
-	protocol, endpoint, err := qwenTarget(opts)
+	protocol, endpoint, err := QwenTarget(opts)
 	if err != nil {
 		return nil, err
 	}

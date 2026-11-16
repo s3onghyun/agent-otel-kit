@@ -60,7 +60,7 @@ Other identifiers stay: `session.id` (Codex: `conversation.id`), `user.account_u
 
 Settings files with comments are not edited (setup stops with an error); add the block by hand in that case.
 
-Qwen Code uses OTLP/gRPC by default (`otlpProtocol: "grpc"`, `otlpEndpoint: "http://localhost:4317"`), because its OTLP/HTTP exporter has an open report of sending empty request bodies ([QwenLM/qwen-code#14466](https://github.com/QwenLM/qwen-code/issues/14466)); OTLP/HTTP worked in the 0.27.4 runs below. setup takes the gRPC endpoint from `--endpoint` by replacing port 4318 with 4317. `setup qwen --protocol http` writes the `--endpoint` URL with `otlpProtocol: "http"` instead, and is needed for an endpoint on another port.
+Qwen Code uses OTLP/gRPC by default (`otlpProtocol: "grpc"`, `otlpEndpoint: "http://localhost:4317"`), because its OTLP/HTTP exporter has an open report of sending empty request bodies ([QwenLM/qwen-code#14466](https://github.com/QwenLM/qwen-code/issues/14466)); OTLP/HTTP worked in the 0.27.4 runs below. setup takes the gRPC endpoint from `--endpoint` by replacing port 4318 with 4317. When `--endpoint` is on another port (for example `setup all --endpoint https://otel.lan/otlp`), setup writes the `--endpoint` URL with `otlpProtocol: "http"` instead and prints a notice. `--protocol http` always writes OTLP/HTTP; `--protocol grpc` always writes gRPC and fails for an endpoint not on port 4318.
 
 Supported versions:
 
@@ -265,7 +265,7 @@ Grafana는 <http://localhost:3000>입니다(익명 읽기 허용, 대시보드�
 
 주석이 있는 설정 파일은 고치지 않고 오류로 멈춥니다. 이때는 블록을 직접 추가합니다.
 
-Qwen Code는 기본으로 OTLP/gRPC(`otlpProtocol: "grpc"`, `otlpEndpoint: "http://localhost:4317"`)를 씁니다. Qwen Code의 OTLP/HTTP exporter가 빈 요청 본문을 보낸다는 이슈가 열려 있기 때문입니다([QwenLM/qwen-code#14466](https://github.com/QwenLM/qwen-code/issues/14466)). 아래 0.27.4 실행에서는 OTLP/HTTP도 동작했습니다. setup은 `--endpoint`의 포트 4318을 4317로 바꿔 gRPC endpoint를 만듭니다. `setup qwen --protocol http`는 `--endpoint` URL을 `otlpProtocol: "http"`로 쓰며, 4318이 아닌 포트의 endpoint에는 이 옵션이 필요합니다.
+Qwen Code는 기본으로 OTLP/gRPC(`otlpProtocol: "grpc"`, `otlpEndpoint: "http://localhost:4317"`)를 씁니다. Qwen Code의 OTLP/HTTP exporter가 빈 요청 본문을 보낸다는 이슈가 열려 있기 때문입니다([QwenLM/qwen-code#14466](https://github.com/QwenLM/qwen-code/issues/14466)). 아래 0.27.4 실행에서는 OTLP/HTTP도 동작했습니다. setup은 `--endpoint`의 포트 4318을 4317로 바꿔 gRPC endpoint를 만듭니다. `--endpoint`가 다른 포트이면(예: `setup all --endpoint https://otel.lan/otlp`) setup은 `--endpoint` URL을 `otlpProtocol: "http"`로 쓰고 안내 문구를 출력합니다. `--protocol http`는 항상 OTLP/HTTP를, `--protocol grpc`는 항상 gRPC를 쓰며 포트가 4318이 아닌 endpoint에서는 실패합니다.
 
 지원 버전:
 

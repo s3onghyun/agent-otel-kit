@@ -63,7 +63,7 @@ agent-otel-kit doctor
 
 带注释的配置文件不会被修改（setup 会报错退出）；这种情况下请手动添加该配置块。
 
-Qwen Code 默认使用 OTLP/gRPC（`otlpProtocol: "grpc"`、`otlpEndpoint: "http://localhost:4317"`），因为它的 OTLP/HTTP exporter 有一个尚未关闭的问题报告，称会发送空的请求体（[QwenLM/qwen-code#14466](https://github.com/QwenLM/qwen-code/issues/14466)）；在下面 0.27.4 的运行中 OTLP/HTTP 也能正常工作。setup 把 `--endpoint` 中的端口 4318 换成 4317 得到 gRPC endpoint。`setup qwen --protocol http` 则以 `otlpProtocol: "http"` 写入 `--endpoint` 的 URL；endpoint 不在 4318 端口时需要用它。
+Qwen Code 默认使用 OTLP/gRPC（`otlpProtocol: "grpc"`、`otlpEndpoint: "http://localhost:4317"`），因为它的 OTLP/HTTP exporter 有一个尚未关闭的问题报告，称会发送空的请求体（[QwenLM/qwen-code#14466](https://github.com/QwenLM/qwen-code/issues/14466)）；在下面 0.27.4 的运行中 OTLP/HTTP 也能正常工作。setup 把 `--endpoint` 中的端口 4318 换成 4317 得到 gRPC endpoint。`--endpoint` 不在 4318 端口时（例如 `setup all --endpoint https://otel.lan/otlp`），setup 改为以 `otlpProtocol: "http"` 写入 `--endpoint` 的 URL，并打印一行提示。`--protocol http` 总是写入 OTLP/HTTP；`--protocol grpc` 总是写入 gRPC，endpoint 不在 4318 端口时会报错。
 
 支持的版本：
 

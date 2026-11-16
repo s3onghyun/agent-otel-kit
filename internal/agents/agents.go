@@ -19,8 +19,8 @@ type Options struct {
 	// Traces enables trace export where it is opt-in (Claude Code beta).
 	Traces bool
 	// Protocol is the OTLP protocol for agents that offer a choice (Qwen
-	// Code): "grpc" or "http". Empty means the agent's setup default; for
-	// Check it means either is accepted.
+	// Code): "grpc" or "http". Empty means the agent picks one from Endpoint
+	// (see QwenTarget); for Check it means either is accepted.
 	Protocol string
 }
 

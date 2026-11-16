@@ -237,11 +237,14 @@ func TestQwenGRPCEndpoint(t *testing.T) {
 	}
 	a, _ := Get("qwen")
 	for _, ep := range []string{"https://otel.lan/otlp", "http://localhost:14318"} {
-		if _, err := a.Apply(nil, Options{Endpoint: ep}); err == nil || !strings.Contains(err.Error(), "--protocol http") {
+		if _, err := a.Apply(nil, Options{Endpoint: ep, Protocol: "grpc"}); err == nil || !strings.Contains(err.Error(), "--protocol http") {
 			t.Errorf("Apply with %s over gRPC: err = %v, want a hint to use --protocol http", ep, err)
 		}
 		if _, err := a.Apply(nil, Options{Endpoint: ep, Protocol: "http"}); err != nil {
 			t.Errorf("Apply with %s over HTTP: %v", ep, err)
+		}
+		if p, got, err := QwenTarget(Options{Endpoint: ep}); err != nil || p != "http" || got != ep {
+			t.Errorf("QwenTarget(%s) = %q, %q, %v; want http", ep, p, got, err)
 		}
 	}
 }

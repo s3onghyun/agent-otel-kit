@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -196,7 +197,7 @@ func TestSetupRejectsBadInput(t *testing.T) {
 		{"setup", "claude", "codex"},
 		{"setup", "claude", "--endpoint", "localhost:4318"},
 		{"setup", "qwen", "--protocol", "grpc+http"},
-		{"setup", "qwen", "--endpoint", "https://otel.lan/otlp"},
+		{"setup", "qwen", "--protocol", "grpc", "--endpoint", "https://otel.lan/otlp"},
 		{"bogus"},
 	} {
 		if code, _, _ := runCLI(t, env, args...); code == 0 {
@@ -289,5 +290,51 @@ func TestSetupQwenProtocol(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("undo left %s: %v", path, err)
+	}
+}
+
+func TestSetupAllRemoteEndpoint(t *testing.T) {
+	env := testEnv(t)
+	code, out, e := runCLI(t, env, "setup", "all", "--endpoint", "https://otel.lan/otlp")
+	if code != 0 {
+		t.Fatalf("setup all: %d %s", code, e)
+	}
+	for _, name := range []string{"claude", "codex", "gemini", "qwen"} {
+		if !strings.Contains(out, name+": wrote ") {
+			t.Errorf("%s not configured:\n%s", name, out)
+		}
+	}
+	if !strings.Contains(e, "qwen: using OTLP/HTTP for https://otel.lan/otlp") {
+		t.Errorf("missing qwen notice: %q", e)
+	}
+	var settings struct {
+		Telemetry struct{ OtlpEndpoint, OtlpProtocol string }
+	}
+	raw, _ := os.ReadFile(filepath.Join(env.Home, ".qwen", "settings.json"))
+	if err := json.Unmarshal(raw, &settings); err != nil {
+		t.Fatal(err)
+	}
+	if settings.Telemetry.OtlpProtocol != "http" || settings.Telemetry.OtlpEndpoint != "https://otel.lan/otlp" {
+		t.Errorf("qwen telemetry = %+v", settings.Telemetry)
+	}
+}
+
+func TestSetupQwenExplicitGRPCRemoteEndpoint(t *testing.T) {
+	env := testEnv(t)
+	code, _, e := runCLI(t, env, "setup", "qwen", "--protocol", "grpc", "--endpoint", "https://otel.lan/otlp")
+	if code == 0 || !strings.Contains(e, "--protocol http") {
+		t.Fatalf("setup qwen --protocol grpc: %d %q", code, e)
+	}
+	if _, err := os.Stat(filepath.Join(env.Home, ".qwen", "settings.json")); !os.IsNotExist(err) {
+		t.Errorf("settings.json written: %v", err)
+	}
+}
+
+func TestSetupQwenTwiceReportsWrittenEndpoint(t *testing.T) {
+	env := testEnv(t)
+	runCLI(t, env, "setup", "qwen")
+	code, out, _ := runCLI(t, env, "setup", "qwen")
+	if code != 0 || !strings.Contains(out, "already points at http://localhost:4317\n") {
+		t.Fatalf("second setup qwen: %d %s", code, out)
 	}
 }
