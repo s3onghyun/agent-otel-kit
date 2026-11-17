@@ -123,7 +123,7 @@ If you already run Grafana, you can import the Grafana dashboards by ID instead 
 | Agent tool calls | [26061](https://grafana.com/grafana/dashboards/26061-agent-tool-calls/) | Tool calls, failures, durations and permission decisions |
 | Agent sessions and traces | [26062](https://grafana.com/grafana/dashboards/26062-agent-sessions-and-traces/) | Per-session cost and tokens, traces and events |
 
-In Grafana, open Dashboards -> New -> Import, enter the ID and pick your Prometheus, Loki and Tempo data sources. The JSON in `grafana/dashboards/*.json` is the source of truth; the grafana.com copy may lag behind a release.
+In Grafana, open Dashboards -> New -> Import, enter the ID and pick your Prometheus, Loki and Tempo data sources (the grafana.com revisions are exported with data-source inputs, so the importer asks you to map them, while the JSON in `grafana/dashboards/` uses the fixed UIDs `prometheus`, `loki` and `tempo` of the kit's provisioned data sources). The JSON in `grafana/dashboards/*.json` is the source of truth; the grafana.com copy may lag behind a release.
 
 ## Claude Code with third-party (Anthropic-compatible) endpoints
 
@@ -334,7 +334,7 @@ Loki에서 본 이벤트 이름: Claude Code `tool_result`, `tool_decision`, `ap
 | Agent tool calls | [26061](https://grafana.com/grafana/dashboards/26061-agent-tool-calls/) | 도구 호출, 실패, 소요 시간, 권한 결정 |
 | Agent sessions and traces | [26062](https://grafana.com/grafana/dashboards/26062-agent-sessions-and-traces/) | 세션별 비용과 토큰, 트레이스, 이벤트 |
 
-Grafana에서 Dashboards -> New -> Import를 열고 ID를 입력한 뒤 Prometheus, Loki, Tempo 데이터 소스를 고릅니다. 기준은 `grafana/dashboards/*.json`이며, grafana.com 사본은 릴리스보다 늦게 갱신될 수 있습니다.
+Grafana에서 Dashboards -> New -> Import를 열고 ID를 입력한 뒤 Prometheus, Loki, Tempo 데이터 소스를 고릅니다(grafana.com 리비전은 데이터 소스 입력을 포함해 내보낸 것이라 가져오기 화면에서 연결할 데이터 소스를 묻지만, `grafana/dashboards/`의 JSON은 kit이 프로비저닝하는 데이터 소스의 고정 UID `prometheus`, `loki`, `tempo`를 씁니다). 기준은 `grafana/dashboards/*.json`이며, grafana.com 사본은 릴리스보다 늦게 갱신될 수 있습니다.
 
 ### 서드파티(Anthropic 호환) 엔드포인트로 Claude Code 쓰기
 

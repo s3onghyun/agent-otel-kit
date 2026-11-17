@@ -126,7 +126,7 @@ token 总数（Tokens 统计值和按会话的 Tokens 列）只累加互不重�
 | Agent tool calls | [26061](https://grafana.com/grafana/dashboards/26061-agent-tool-calls/) | 工具调用、失败、耗时和权限决定 |
 | Agent sessions and traces | [26062](https://grafana.com/grafana/dashboards/26062-agent-sessions-and-traces/) | 按会话的费用和 token、链路和事件 |
 
-在 Grafana 中打开 Dashboards -> New -> Import，输入 ID，并选择你的 Prometheus、Loki 和 Tempo 数据源。`grafana/dashboards/*.json` 中的 JSON 是唯一准据；grafana.com 上的副本可能落后于发布版本。
+在 Grafana 中打开 Dashboards -> New -> Import，输入 ID，并选择你的 Prometheus、Loki 和 Tempo 数据源（grafana.com 上的修订版本导出时带有数据源输入，因此导入器会让你映射这些数据源；而 `grafana/dashboards/` 中的 JSON 使用 kit 预置数据源的固定 UID `prometheus`、`loki` 和 `tempo`）。`grafana/dashboards/*.json` 中的 JSON 是唯一准据；grafana.com 上的副本可能落后于发布版本。
 
 ## 使用第三方（Anthropic 兼容）端点的 Claude Code
 
