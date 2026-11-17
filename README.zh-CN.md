@@ -116,6 +116,18 @@ token 总数（Tokens 统计值和按会话的 Tokens 列）只累加互不重�
 
 截图取自这套栈，数据来自在作者机器上运行的真实会话：Claude Code（`make demo`）、`codex exec`、`gemini -p` 和 Qwen Code 0.27.4（`qwen -p`，连接使用 dummy key 的本地 OpenAI 兼容 mock 模型服务器），然后运行 `make screenshots`。顶部的演示 GIF 是在一次这样的运行期间用 headless Chromium 录制的同一组仪表盘，只做了裁剪和加速；`docs/demo.mp4` 是其原始文件。
 
+### 从 grafana.com 导入
+
+如果你已经在运行 Grafana，可以按 ID 导入 Grafana 仪表盘，而不必从本仓库预置 JSON：
+
+| 仪表盘 | grafana.com ID | 内容 |
+| --- | --- | --- |
+| Agent cost and tokens | [26060](https://grafana.com/grafana/dashboards/26060-agent-cost-and-tokens/) | 按 agent 和模型的费用、token、会话和活跃时间 |
+| Agent tool calls | [26061](https://grafana.com/grafana/dashboards/26061-agent-tool-calls/) | 工具调用、失败、耗时和权限决定 |
+| Agent sessions and traces | [26062](https://grafana.com/grafana/dashboards/26062-agent-sessions-and-traces/) | 按会话的费用和 token、链路和事件 |
+
+在 Grafana 中打开 Dashboards -> New -> Import，输入 ID，并选择你的 Prometheus、Loki 和 Tempo 数据源。`grafana/dashboards/*.json` 中的 JSON 是唯一准据；grafana.com 上的副本可能落后于发布版本。
+
 ## 使用第三方（Anthropic 兼容）端点的 Claude Code
 
 DeepSeek、Z.ai（GLM）、Moonshot（Kimi）、MiniMax 和阿里云百炼（Alibaba Model Studio）都发布了通过 `ANTHROPIC_BASE_URL` 让 Claude Code 连接其 Anthropic 兼容 API 的指南。此时 Claude Code 照常导出遥测，kit 无需改动即可接收。仪表盘上显示的内容（用 Claude Code 2.1.325 和本地模拟端点测得，尚未在真实 provider 上验证）：

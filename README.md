@@ -113,6 +113,18 @@ Event names seen in Loki: Claude Code `tool_result`, `tool_decision`, `api_reque
 
 The screenshots were taken from this stack with real sessions run on the author's machine: Claude Code (`make demo`), `codex exec`, `gemini -p` and Qwen Code 0.27.4 (`qwen -p`, against a local OpenAI-compatible mock model server with a dummy key), then `make screenshots`. The demo GIF at the top is a headless Chromium recording of the same dashboards during one such run, only trimmed and sped up; `docs/demo.mp4` is its source.
 
+### Import from grafana.com
+
+If you already run Grafana, you can import the Grafana dashboards by ID instead of provisioning the JSON from this repository:
+
+| Dashboard | grafana.com ID | What it shows |
+| --- | --- | --- |
+| Agent cost and tokens | [26060](https://grafana.com/grafana/dashboards/26060-agent-cost-and-tokens/) | Cost, tokens, sessions and active time by agent and model |
+| Agent tool calls | [26061](https://grafana.com/grafana/dashboards/26061-agent-tool-calls/) | Tool calls, failures, durations and permission decisions |
+| Agent sessions and traces | [26062](https://grafana.com/grafana/dashboards/26062-agent-sessions-and-traces/) | Per-session cost and tokens, traces and events |
+
+In Grafana, open Dashboards -> New -> Import, enter the ID and pick your Prometheus, Loki and Tempo data sources. The JSON in `grafana/dashboards/*.json` is the source of truth; the grafana.com copy may lag behind a release.
+
 ## Claude Code with third-party (Anthropic-compatible) endpoints
 
 DeepSeek, Z.ai (GLM), Moonshot (Kimi), MiniMax and Alibaba Model Studio publish guides for running Claude Code against their Anthropic-compatible APIs through `ANTHROPIC_BASE_URL`. Claude Code then exports the same telemetry as usual, and the kit receives it without changes. What the dashboards show, measured with Claude Code 2.1.325 against a local mock of such an endpoint (not yet against the providers themselves):
@@ -311,6 +323,18 @@ Prometheus에 실제로 들어온 메트릭 이름. Claude Code 2.1.325: `claude
 Loki에서 본 이벤트 이름: Claude Code `tool_result`, `tool_decision`, `api_request`, `user_prompt` 등; Codex `codex.tool_result`, `codex.tool_decision`, `codex.sse_event`, `codex.api_request`, `codex.user_prompt` 등; Gemini CLI `gemini_cli.tool_call`, `gemini_cli.api_request`, `gemini_cli.api_response`, `gemini_cli.file_operation`, `gemini_cli.user_prompt` 등; Qwen Code `qwen-code.tool_call`, `qwen-code.api_request`, `qwen-code.api_response`, `qwen-code.file_operation`, `qwen-code.user_prompt` 등.
 
 스크린샷은 작성자 컴퓨터에서 실제 세션을 돌린 이 스택에서 찍었습니다: Claude Code(`make demo`), `codex exec`, `gemini -p`, Qwen Code 0.27.4(`qwen -p`, dummy 키를 쓰는 로컬 OpenAI 호환 mock 모델 서버 대상), 그다음 `make screenshots`. 맨 위 데모 GIF는 그런 실행 한 번 동안 같은 대시보드를 headless Chromium으로 녹화한 것으로, 자르기와 배속만 했습니다. 원본은 `docs/demo.mp4`입니다.
+
+#### grafana.com에서 가져오기
+
+이미 Grafana를 쓰고 있다면 이 저장소의 JSON을 프로비저닝하는 대신 ID로 Grafana 대시보드를 가져올 수 있습니다.
+
+| 대시보드 | grafana.com ID | 내용 |
+| --- | --- | --- |
+| Agent cost and tokens | [26060](https://grafana.com/grafana/dashboards/26060-agent-cost-and-tokens/) | 에이전트·모델별 비용, 토큰, 세션, 활동 시간 |
+| Agent tool calls | [26061](https://grafana.com/grafana/dashboards/26061-agent-tool-calls/) | 도구 호출, 실패, 소요 시간, 권한 결정 |
+| Agent sessions and traces | [26062](https://grafana.com/grafana/dashboards/26062-agent-sessions-and-traces/) | 세션별 비용과 토큰, 트레이스, 이벤트 |
+
+Grafana에서 Dashboards -> New -> Import를 열고 ID를 입력한 뒤 Prometheus, Loki, Tempo 데이터 소스를 고릅니다. 기준은 `grafana/dashboards/*.json`이며, grafana.com 사본은 릴리스보다 늦게 갱신될 수 있습니다.
 
 ### 서드파티(Anthropic 호환) 엔드포인트로 Claude Code 쓰기
 
